@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Rochling Automotive — Product Audit - 2026 v7</title>
+<title>T1 Automotive — Audit Pro 2026 v7</title>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -361,8 +361,8 @@ select.form-input option{background:var(--card);}
 <div class="app">
 <aside class="sidebar">
   <div class="sidebar-logo">
-    <div class="brand">Rochling Automotive</div>
-    <div class="sub">Product Audit</div>
+    <div class="brand">T1 AUTOMOTIVE</div>
+    <div class="sub">Audit Pro</div>
     <span class="sidebar-year">2026</span>
   </div>
   <nav class="sidebar-nav">
@@ -442,6 +442,25 @@ select.form-input option{background:var(--card);}
           <div><div class="chart-title">Por Cliente</div><div class="chart-sub">Top clientes</div></div>
         </div>
         <div class="chart-body"><canvas id="clientChart"></canvas></div>
+      </div>
+      <div class="chart-card wide">
+        <div class="chart-header">
+          <div>
+            <div class="chart-title">Atrasados</div>
+            <div class="chart-sub">Auditorias com status Atrasado — por mês e por cliente</div>
+          </div>
+          <div id="alertTotBadge" style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:var(--danger);"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+          <div>
+            <div style="font-size:11px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.7px;margin-bottom:10px;">Por mês</div>
+            <div style="height:200px;position:relative;"><canvas id="alertMonthChart"></canvas></div>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.7px;margin-bottom:10px;">Por cliente</div>
+            <div style="height:200px;position:relative;"><canvas id="alertClientChart"></canvas></div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -1517,7 +1536,7 @@ function destroyCharts(...keys) {
 function renderCharts() {
   const {text, grid} = getChartColors();
   // FIX 1: Usa "dashRiskChart" para o gráfico do dashboard
-  destroyCharts('monthly','status','dashRiskChart','client');
+  destroyCharts('monthly','status','dashRiskChart','client','alertMonthChart','alertClientChart');
 
   const monthly = Array(12).fill(0);
   state.audits.forEach(a => a.months.forEach((v,i) => { if(v>0) monthly[i]++; }));
@@ -1553,6 +1572,63 @@ function renderCharts() {
     type: 'bar',
     data: {labels:sorted.map(c=>c[0]), datasets:[{data:sorted.map(c=>c[1]), backgroundColor:'rgba(0,198,255,.7)', borderRadius:7}]},
     options: {indexAxis:'y', responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{x:{beginAtZero:true,grid:{color:grid},ticks:{color:text,stepSize:1}},y:{grid:{display:false},ticks:{color:text}}}}
+  });
+
+  // ---- GRÁFICO DE ATRASADOS ----
+  // Atrasados por mês (status === 4)
+  const alertByMonth = Array(12).fill(0);
+  state.audits.forEach(a => a.months.forEach((v,i) => { if(v === 4) alertByMonth[i]++; }));
+  const totalAlerts = alertByMonth.reduce((s,x) => s+x, 0);
+  const badge = document.getElementById('alertTotBadge');
+  if (badge) badge.textContent = totalAlerts > 0 ? totalAlerts + ' atrasado' + (totalAlerts > 1 ? 's' : '') : '—';
+
+  state.charts.alertMonthChart = new Chart('alertMonthChart', {
+    type: 'bar',
+    data: {
+      labels: MONTHS,
+      datasets: [{
+        data: alertByMonth,
+        backgroundColor: alertByMonth.map(v => v > 0 ? 'rgba(255,61,87,.8)' : 'rgba(255,255,255,.05)'),
+        borderRadius: 6, borderSkipped: false
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, grid: { color: grid }, ticks: { color: text, stepSize: 1 } },
+        x: { grid: { display: false }, ticks: { color: text } }
+      }
+    }
+  });
+
+  // Atrasados por cliente
+  const alertByClient = {};
+  state.audits.forEach(a => {
+    const hasAlert = a.months.some(v => v === 4);
+    if (hasAlert) alertByClient[a.client] = (alertByClient[a.client] || 0) + 1;
+  });
+  const sortedAlert = Object.entries(alertByClient).sort((a,b) => b[1]-a[1]).slice(0, 8);
+
+  state.charts.alertClientChart = new Chart('alertClientChart', {
+    type: 'bar',
+    data: {
+      labels: sortedAlert.map(c => c[0]),
+      datasets: [{
+        data: sortedAlert.map(c => c[1]),
+        backgroundColor: 'rgba(255,108,47,.8)',
+        borderRadius: 6
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { beginAtZero: true, grid: { color: grid }, ticks: { color: text, stepSize: 1 } },
+        y: { grid: { display: false }, ticks: { color: text, font: { size: 11 } } }
+      }
+    }
   });
 }
 
