@@ -11,7 +11,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
-<!-- FIX 4: DOMPurify para sanitização de HTML de documentos externos -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
 <style>
 :root {
@@ -163,12 +162,19 @@ body{
 .metric-label{font-size:11px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.8px;}
 
 .charts-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:20px;margin-bottom:28px;}
-.chart-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:22px;}
+.chart-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:22px;position:relative;}
 .chart-card.wide{grid-column:span 2;}
 .chart-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;}
 .chart-title{font-family:'Syne',sans-serif;font-size:15px;font-weight:700;}
 .chart-sub{font-size:11px;color:var(--text-secondary);margin-top:2px;}
 .chart-body{height:230px;position:relative;}
+.chart-clickable-hint{
+  position:absolute;top:10px;right:14px;
+  font-size:10px;color:var(--text-secondary);
+  opacity:0.5;letter-spacing:.5px;text-transform:uppercase;
+  pointer-events:none;
+}
+canvas{cursor:default;}
 
 .gantt-section{background:var(--card);border:1px solid var(--border);border-radius:16px;overflow:hidden;}
 .gantt-toolbar{display:flex;gap:12px;align-items:center;padding:18px 22px;background:var(--card2);border-bottom:1px solid var(--border);flex-wrap:wrap;}
@@ -194,8 +200,58 @@ body{
 .bar-alert{background:linear-gradient(135deg,#ff3d57,#c9002a);color:#fff;animation:pulse 1.8s infinite;}
 .bar-inprogress{background:linear-gradient(135deg,#ffb300,#e67e00);color:#fff;}
 @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.7;}}
-.gantt-tooltip{position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);background:var(--card2);color:var(--text);padding:6px 10px;border-radius:8px;font-size:11px;white-space:nowrap;border:1px solid var(--border);box-shadow:var(--shadow-md);display:none;z-index:50;pointer-events:none;}
+
+/* ---- Barra com arquivo anexado ---- */
+.gantt-bar.has-file{outline:2px solid rgba(255,255,255,.55);outline-offset:-2px;overflow:visible;}
+.gantt-bar.has-file::after{
+  content:'📎';
+  position:absolute;top:-8px;right:-5px;
+  font-size:11px;line-height:1;
+  background:var(--card2);border:1px solid var(--border);
+  border-radius:50%;width:18px;height:18px;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 2px 6px rgba(0,0,0,.4);
+  z-index:10;pointer-events:none;
+}
+.bar-file-btn{
+  position:absolute;inset:0;
+  display:flex;align-items:center;justify-content:center;gap:3px;
+  background:rgba(0,0,0,.0);border:none;color:inherit;
+  cursor:pointer;border-radius:inherit;
+  font-size:11px;font-weight:700;font-family:'DM Sans',sans-serif;
+  transition:background .15s;
+  width:100%;
+}
+.bar-file-btn:hover{background:rgba(0,0,0,.18);}
+
+/* Tooltip rico */
+.gantt-tooltip{position:absolute;bottom:calc(100% + 10px);left:50%;transform:translateX(-50%);
+  background:var(--card2);color:var(--text);padding:8px 12px;border-radius:10px;
+  font-size:11px;white-space:nowrap;border:1px solid var(--border);
+  box-shadow:var(--shadow-md);display:none;z-index:50;pointer-events:none;min-width:120px;}
+.gantt-tooltip-title{font-weight:700;margin-bottom:2px;}
+.gantt-tooltip-file{color:var(--accent);margin-top:4px;font-size:10px;display:flex;align-items:center;gap:4px;}
 .gantt-bar:hover .gantt-tooltip{display:block;}
+
+/* Mini preview popup do arquivo no Gantt */
+.gantt-file-popup{
+  position:fixed;z-index:1500;
+  background:var(--card);border:1px solid var(--border);
+  border-radius:16px;box-shadow:var(--shadow-lg);
+  width:520px;max-width:95vw;
+  animation:modalIn .2s ease;
+  display:flex;flex-direction:column;
+  overflow:hidden;
+}
+.gantt-file-popup-head{
+  display:flex;align-items:center;gap:10px;
+  padding:12px 16px;background:var(--card2);
+  border-bottom:1px solid var(--border);flex-shrink:0;
+}
+.gantt-file-popup-title{font-size:13px;font-weight:700;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.gantt-file-popup-body{height:340px;overflow:hidden;position:relative;}
+.gantt-file-popup-actions{display:flex;gap:8px;padding:10px 16px;border-top:1px solid var(--border);background:var(--card2);flex-shrink:0;}
+.gantt-popup-backdrop{position:fixed;inset:0;z-index:1499;}
 .gantt-legend{display:flex;gap:20px;padding:14px 22px;border-top:1px solid var(--border);background:var(--card2);flex-wrap:wrap;}
 .legend-dot{width:12px;height:12px;border-radius:4px;flex-shrink:0;}
 .legend-item{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-secondary);}
@@ -232,6 +288,25 @@ select.form-input option{background:var(--card);}
 .modal-footer .btn{flex:1;}
 
 .months-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;grid-column:span 2;}
+
+/* ---- Linha de arquivo por mês ---- */
+.month-file-row{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 14px;border-radius:10px;
+  background:var(--surface);border:1px solid var(--border);
+  transition:border-color .2s;
+}
+.month-file-row:hover{border-color:var(--border-hover);}
+.month-file-row.has-file{background:rgba(0,198,255,.06);border-color:rgba(0,198,255,.25);}
+.month-file-row.inactive{opacity:.45;}
+.mfr-month{font-size:11px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;
+  letter-spacing:.8px;min-width:30px;flex-shrink:0;}
+.mfr-status{font-size:13px;min-width:18px;flex-shrink:0;}
+.mfr-info{flex:1;min-width:0;}
+.mfr-name{font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.mfr-size{font-size:10px;color:var(--text-secondary);}
+.mfr-empty{font-size:12px;color:var(--text-secondary);font-style:italic;}
+.mfr-actions{display:flex;gap:6px;flex-shrink:0;}
 .month-cell{display:flex;flex-direction:column;align-items:center;gap:4px;}
 .month-cell label{font-size:10px;color:var(--text-secondary);font-weight:600;}
 .month-select{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:5px 2px;color:var(--text);font-size:11px;outline:none;text-align:center;cursor:pointer;font-family:'DM Sans',sans-serif;}
@@ -422,25 +497,28 @@ select.form-input option{background:var(--card);}
         <div class="chart-header">
           <div><div class="chart-title">Volume Mensal</div><div class="chart-sub">Auditorias por mês em 2026</div></div>
         </div>
+        <span class="chart-clickable-hint">↗ clique para filtrar</span>
         <div class="chart-body"><canvas id="monthlyChart"></canvas></div>
       </div>
       <div class="chart-card">
         <div class="chart-header">
           <div><div class="chart-title">Status</div><div class="chart-sub">Distribuição geral</div></div>
         </div>
+        <span class="chart-clickable-hint">↗ clique para filtrar</span>
         <div class="chart-body"><canvas id="statusChart"></canvas></div>
       </div>
       <div class="chart-card">
         <div class="chart-header">
           <div><div class="chart-title">Nível de Risco</div><div class="chart-sub">Classificação das auditorias</div></div>
         </div>
-        <!-- FIX 1: ID renomeado de "riskChart" para "dashRiskChart" para evitar conflito com a tela Risk Assessment -->
+        <span class="chart-clickable-hint">↗ clique para filtrar</span>
         <div class="chart-body"><canvas id="dashRiskChart"></canvas></div>
       </div>
       <div class="chart-card">
         <div class="chart-header">
           <div><div class="chart-title">Por Cliente</div><div class="chart-sub">Top clientes</div></div>
         </div>
+        <span class="chart-clickable-hint">↗ clique para filtrar</span>
         <div class="chart-body"><canvas id="clientChart"></canvas></div>
       </div>
       <div class="chart-card wide">
@@ -453,11 +531,11 @@ select.form-input option{background:var(--card);}
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
           <div>
-            <div style="font-size:11px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.7px;margin-bottom:10px;">Por mês</div>
+            <div style="font-size:11px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px;">Por mês <span style="opacity:.5;font-size:10px;">↗ clique para filtrar</span></div>
             <div style="height:200px;position:relative;"><canvas id="alertMonthChart"></canvas></div>
           </div>
           <div>
-            <div style="font-size:11px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.7px;margin-bottom:10px;">Por cliente</div>
+            <div style="font-size:11px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px;">Por cliente <span style="opacity:.5;font-size:10px;">↗ clique para filtrar</span></div>
             <div style="height:200px;position:relative;"><canvas id="alertClientChart"></canvas></div>
           </div>
         </div>
@@ -518,7 +596,7 @@ select.form-input option{background:var(--card);}
         <div class="legend-item"><div class="legend-dot" style="background:linear-gradient(135deg,#ffb300,#e67e00);"></div>Em andamento</div>
         <div class="legend-item"><div class="legend-dot" style="background:linear-gradient(135deg,#ff3d57,#c9002a);"></div>Atrasado</div>
         <div class="legend-item"><div class="legend-dot" style="background:var(--border);"></div>Não agendado</div>
-        <div style="margin-left:auto;font-size:11px;color:var(--text-secondary);">💡 Clique nas barras para alternar status</div>
+        <div style="margin-left:auto;font-size:11px;color:var(--text-secondary);">💡 Barra com 📎 = clique para ver relatório · Barra ativa sem arquivo = clique para anexar · Barra vazia = clique para ativar</div>
       </div>
     </div>
   </div>
@@ -543,12 +621,13 @@ select.form-input option{background:var(--card);}
         <div class="chart-header">
           <div><div class="chart-title">Taxa de Aprovação por Cliente</div><div class="chart-sub">% aprovado vs total</div></div>
         </div>
+        <span class="chart-clickable-hint">↗ clique para filtrar</span>
         <div class="chart-body"><canvas id="approvalChart"></canvas></div>
       </div>
     </div>
   </div>
 
-  <!-- FIX 3: view-risk movido para DENTRO de .main, igual aos outros views -->
+  <!-- RISK -->
   <div id="view-risk" class="content" style="display:none;">
     <div style="margin-bottom:24px;">
       <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;margin-bottom:4px;">⚠️ Análise de Risco — Auditoria de Produto 2026</div>
@@ -606,7 +685,7 @@ select.form-input option{background:var(--card);}
         <div class="chart-header">
           <div><div class="chart-title">Score de Risco por Produto</div><div class="chart-sub">Linha vermelha = threshold crítico (≥5)</div></div>
         </div>
-        <!-- FIX 1: ID exclusivo para o gráfico da tela Risk Assessment -->
+        <span class="chart-clickable-hint">↗ clique para filtrar</span>
         <div class="chart-body"><canvas id="riskBarChart"></canvas></div>
       </div>
     </div>
@@ -641,7 +720,7 @@ select.form-input option{background:var(--card);}
         </div>
       </div>
     </div>
-  </div><!-- fim view-risk -->
+  </div>
 
 </main>
 </div>
@@ -759,22 +838,10 @@ select.form-input option{background:var(--card);}
           <div class="months-grid" id="nMonthsGrid"></div>
         </div>
         <div class="form-divider"></div>
-        <div class="form-group full" id="nFileZoneWrap">
-          <label class="form-label">Anexar Relatório</label>
-          <div class="file-zone" onclick="document.getElementById('nFile').click()">
-            <div style="font-size:28px;">📎</div>
-            <div class="file-zone-label">Clique para anexar arquivo</div>
-            <div class="file-zone-sub">PDF, DOC, XLS, JPG — máx. 10 MB</div>
-            <input type="file" id="nFile" style="display:none" onchange="handleFile('n',event)" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png">
-          </div>
-          <div class="file-attached" id="nFilePreview" style="display:none;">
-            <div class="file-attached-icon">📄</div>
-            <div class="file-attached-info">
-              <div class="file-attached-name" id="nFileName"></div>
-              <div class="file-attached-size" id="nFileSize"></div>
-            </div>
-            <button class="btn btn-sm btn-danger" onclick="removeFile('n')">✕</button>
-          </div>
+        <div class="form-group full">
+          <label class="form-label">📎 Relatórios por Mês</label>
+          <div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px;">Anexe um arquivo de relatório para cada mês de auditoria ativo.</div>
+          <div id="nMonthFilesGrid" style="display:flex;flex-direction:column;gap:8px;"></div>
         </div>
       </div>
     </div>
@@ -841,20 +908,9 @@ select.form-input option{background:var(--card);}
         </div>
         <div class="form-divider"></div>
         <div class="form-group full">
-          <label class="form-label">Relatório Anexado</label>
-          <div class="file-zone" onclick="document.getElementById('eFile').click()">
-            <div style="font-size:24px;">📎</div>
-            <div class="file-zone-label">Clique para atualizar arquivo</div>
-            <input type="file" id="eFile" style="display:none" onchange="handleFile('e',event)" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png">
-          </div>
-          <div class="file-attached" id="eFilePreview" style="display:none;margin-top:8px;">
-            <div class="file-attached-icon">📄</div>
-            <div class="file-attached-info">
-              <div class="file-attached-name" id="eFileName"></div>
-              <div class="file-attached-size" id="eFileSize"></div>
-            </div>
-            <button class="btn btn-sm btn-danger" onclick="removeFile('e')">✕</button>
-          </div>
+          <label class="form-label">📎 Relatórios por Mês</label>
+          <div style="font-size:11px;color:var(--text-secondary);margin-bottom:10px;">Cada mês ativo pode ter seu próprio relatório de auditoria.</div>
+          <div id="eMonthFilesGrid" style="display:flex;flex-direction:column;gap:8px;"></div>
         </div>
       </div>
     </div>
@@ -875,15 +931,7 @@ select.form-input option{background:var(--card);}
     </div>
     <div class="modal-body">
       <div class="view-grid" id="viewGrid"></div>
-      <div class="file-attached" id="viewFileArea" style="display:none;">
-        <div class="file-attached-icon" id="viewFileIcon">📄</div>
-        <div class="file-attached-info">
-          <div class="file-attached-name" id="viewFileName"></div>
-          <div class="file-attached-size" id="viewFileSize"></div>
-        </div>
-        <button class="btn btn-sm btn-primary" onclick="openFileViewer()">👁 Visualizar</button>
-        <button class="btn btn-sm" onclick="downloadAttachment()">⬇ Baixar</button>
-      </div>
+      <div id="viewFilesArea"></div>
     </div>
     <div class="modal-footer">
       <button class="btn" onclick="closeModal('viewModal')">Fechar</button>
@@ -915,7 +963,6 @@ select.form-input option{background:var(--card);}
 </div>
 
 <script>
-// ===== VISUALIZADOR DE ARQUIVO =====
 const FILE_ICONS = {
   pdf:'📕',jpg:'🖼️',jpeg:'🖼️',png:'🖼️',gif:'🖼️',webp:'🖼️',bmp:'🖼️',
   xls:'📗',xlsx:'📗',csv:'📊',doc:'📘',docx:'📘',txt:'📝'
@@ -927,7 +974,6 @@ const FILE_COLORS = {
 
 let imgZoom = 1;
 
-// FIX 5: Estado agrupado em objeto para evitar poluição de escopo global
 const state = {
   audits: [],
   filtered: [],
@@ -939,10 +985,49 @@ const state = {
   importedAudits: []
 };
 
-// Atalhos para compatibilidade com código legado (evita reescrever todas as referências)
-function getAudits() { return state.audits; }
-
 function getFileExt(name) { return (name||'').split('.').pop().toLowerCase(); }
+
+// ===== FUNÇÃO CENTRAL: Aplica filtro e navega para o Gantt =====
+function applyChartFilter(filterType, value, extraFilter) {
+  // Navega para a view Gantt
+  const ganttNav = document.querySelector('.nav-item[onclick*="gantt"]');
+  if (ganttNav) {
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    ganttNav.classList.add('active');
+    ['dashboard','gantt','analytics','risk'].forEach(v => {
+      const el = document.getElementById('view-' + v);
+      if (el) el.style.display = v === 'gantt' ? '' : 'none';
+    });
+    document.getElementById('viewTitle').textContent = 'Cronograma Gantt';
+  }
+  // Limpa filtros anteriores antes de aplicar o novo
+  clearFilters(true);
+  setTimeout(() => {
+    if (filterType === 'client') {
+      const el = document.getElementById('clientFilter');
+      if (el) el.value = value;
+    } else if (filterType === 'risk') {
+      const el = document.getElementById('riskFilter');
+      if (el) el.value = value;
+    } else if (filterType === 'status') {
+      const el = document.getElementById('statusFilter');
+      if (el) el.value = value;
+    } else if (filterType === 'month') {
+      const el = document.getElementById('monthFilter');
+      if (el) el.value = value;
+    } else if (filterType === 'monthStatus') {
+      const el = document.getElementById('monthStatusFilter');
+      if (el) el.value = value;
+    }
+    // filtro extra combinado (ex: mês + status atrasado)
+    if (extraFilter) {
+      const el = document.getElementById(extraFilter.id);
+      if (el) el.value = extraFilter.value;
+    }
+    filterGantt();
+  }, 30);
+}
+window.applyChartFilter = applyChartFilter;
 
 function openFileViewer() {
   const audit = state.audits.find(a => a.id === state.currentViewId);
@@ -954,13 +1039,11 @@ function openFileViewer() {
   const ext = getFileExt(file.name);
   const icon = FILE_ICONS[ext] || '📄';
   const color = FILE_COLORS[ext] || 'var(--accent)';
-
   document.getElementById('fvTypeIcon').textContent = icon;
   document.getElementById('fvFileName').textContent = file.name;
   document.getElementById('fvTypeBadge').textContent = ext.toUpperCase();
   document.getElementById('fvTypeBadge').style.background = color + '22';
   document.getElementById('fvTypeBadge').style.color = color;
-
   document.getElementById('fileViewer').classList.add('active');
   renderFileContent(file, ext);
 }
@@ -973,12 +1056,10 @@ function closeFileViewer() {
 
 function renderFileContent(file, ext) {
   const body = document.getElementById('fvBody');
-
   if (ext === 'pdf') {
     body.innerHTML = `<div class="fv-pdf-wrap"><iframe src="${file.data}" title="${file.name}"></iframe></div>`;
     return;
   }
-
   if (['jpg','jpeg','png','gif','webp','bmp'].includes(ext)) {
     imgZoom = 1;
     body.innerHTML = `
@@ -992,7 +1073,6 @@ function renderFileContent(file, ext) {
       </div>`;
     return;
   }
-
   if (['xls','xlsx'].includes(ext)) {
     body.innerHTML = `<div class="fv-loading"><div class="fv-spinner"></div><span>Lendo planilha...</span></div>`;
     try {
@@ -1002,12 +1082,9 @@ function renderFileContent(file, ext) {
       for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
       const wb = XLSX.read(bytes, { type: 'array' });
       renderExcelWorkbook(body, wb);
-    } catch(e) {
-      showFileError(body, 'Não foi possível ler a planilha.', e.message);
-    }
+    } catch(e) { showFileError(body, 'Não foi possível ler a planilha.', e.message); }
     return;
   }
-
   if (ext === 'csv') {
     body.innerHTML = `<div class="fv-loading"><div class="fv-spinner"></div><span>Lendo CSV...</span></div>`;
     try {
@@ -1020,14 +1097,10 @@ function renderFileContent(file, ext) {
         const text = atob(file.data.split(',')[1]);
         const wb = XLSX.read(text, { type: 'string' });
         renderExcelWorkbook(body, wb);
-      } catch(e2) {
-        showFileError(body, 'Não foi possível ler o CSV.', e2.message);
-      }
+      } catch(e2) { showFileError(body, 'Não foi possível ler o CSV.', e2.message); }
     }
     return;
   }
-
-  // FIX 4: Sanitização com DOMPurify antes de injetar HTML de documentos Word
   if (ext === 'docx') {
     body.innerHTML = `<div class="fv-loading"><div class="fv-spinner"></div><span>Processando documento Word...</span></div>`;
     try {
@@ -1037,48 +1110,26 @@ function renderFileContent(file, ext) {
       for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
       mammoth.convertToHtml({ arrayBuffer: bytes.buffer })
         .then(result => {
-          // FIX 4: Sanitiza o HTML gerado pelo Mammoth para evitar XSS
-          const sanitized = (typeof DOMPurify !== 'undefined')
-            ? DOMPurify.sanitize(result.value || '')
-            : result.value || '';
-          body.innerHTML = `
-            <div class="fv-doc-wrap">
-              <div class="fv-doc-content">${sanitized || '<p style="color:var(--text-secondary)">Documento vazio ou sem conteúdo legível.</p>'}</div>
-            </div>`;
+          const sanitized = (typeof DOMPurify !== 'undefined') ? DOMPurify.sanitize(result.value || '') : result.value || '';
+          body.innerHTML = `<div class="fv-doc-wrap"><div class="fv-doc-content">${sanitized || '<p style="color:var(--text-secondary)">Documento vazio.</p>'}</div></div>`;
         })
         .catch(err => showFileError(body, 'Erro ao processar o documento Word.', err.message));
-    } catch(e) {
-      showFileError(body, 'Não foi possível ler o arquivo .docx.', e.message);
-    }
+    } catch(e) { showFileError(body, 'Não foi possível ler o arquivo .docx.', e.message); }
     return;
   }
-
-  if (ext === 'doc') {
-    showFileError(body, 'Formato .doc (Word 97-2003) não suportado para visualização.', 'Converta para .docx para visualizar o conteúdo aqui.', '📘', true);
-    return;
-  }
-
+  if (ext === 'doc') { showFileError(body, 'Formato .doc não suportado.', 'Converta para .docx para visualizar.', '📘', true); return; }
   if (ext === 'txt') {
     try {
       const text = decodeURIComponent(escape(atob(file.data.split(',')[1])));
-      body.innerHTML = `
-        <div class="fv-doc-wrap">
-          <div class="fv-doc-content">
-            <pre style="white-space:pre-wrap;font-family:'DM Sans',sans-serif;font-size:13px;line-height:1.7;">${escapeHtml(text)}</pre>
-          </div>
-        </div>`;
-    } catch(e) {
-      showFileError(body, 'Não foi possível ler o texto.', e.message);
-    }
+      body.innerHTML = `<div class="fv-doc-wrap"><div class="fv-doc-content"><pre style="white-space:pre-wrap;font-family:'DM Sans',sans-serif;font-size:13px;line-height:1.7;">${escapeHtml(text)}</pre></div></div>`;
+    } catch(e) { showFileError(body, 'Não foi possível ler o texto.', e.message); }
     return;
   }
-
-  showFileError(body, `Tipo de arquivo ".${ext}" não pode ser visualizado aqui.`, 'Use o botão Baixar para abrir no seu computador.', '📎', true);
+  showFileError(body, `Tipo ".${ext}" não pode ser visualizado aqui.`, 'Use o botão Baixar para abrir no seu computador.', '📎', true);
 }
 
 function renderExcelWorkbook(body, wb) {
   const sheets = wb.SheetNames;
-
   function renderSheet(idx) {
     const ws = wb.Sheets[sheets[idx]];
     const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
@@ -1086,40 +1137,24 @@ function renderExcelWorkbook(body, wb) {
     const headers = data[0];
     const rows = data.slice(1);
     const headerHtml = headers.map(h => `<th>${escapeHtml(String(h))}</th>`).join('');
-    const rowsHtml = rows.map(row =>
-      `<tr>${headers.map((_, ci) => `<td>${escapeHtml(String(row[ci] ?? ''))}</td>`).join('')}</tr>`
-    ).join('');
+    const rowsHtml = rows.map(row => `<tr>${headers.map((_, ci) => `<td>${escapeHtml(String(row[ci] ?? ''))}</td>`).join('')}</tr>`).join('');
     return `<table class="fv-table"><thead><tr>${headerHtml}</tr></thead><tbody>${rowsHtml}</tbody></table>`;
   }
-
-  const tabsHtml = sheets.map((s, i) =>
-    `<button class="fv-sheet-btn ${i === 0 ? 'active' : ''}" id="tab-${i}" onclick="switchSheet(${i})">${escapeHtml(s)}</button>`
-  ).join('');
-
+  const tabsHtml = sheets.map((s, i) => `<button class="fv-sheet-btn ${i === 0 ? 'active' : ''}" id="tab-${i}" onclick="switchSheet(${i})">${escapeHtml(s)}</button>`).join('');
   body.innerHTML = `
     <div class="fv-table-wrap">
       ${sheets.length > 1 ? `<div class="fv-table-info">${tabsHtml}<span style="font-size:11px;color:var(--text-secondary);margin-left:8px">${sheets.length} abas</span></div>` : ''}
       <div id="fvTableContent">${renderSheet(0)}</div>
     </div>`;
-
-  // FIX 6: Usar closure em vez de window._xlsxWb para evitar poluição global
   window.switchSheet = (function(wb, sheets) {
     return function(idx) {
       document.querySelectorAll('.fv-sheet-btn').forEach((b, i) => b.classList.toggle('active', i === idx));
       const ws = wb.Sheets[sheets[idx]];
       const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
-      if (!data || data.length === 0) {
-        document.getElementById('fvTableContent').innerHTML = '<p style="color:var(--text-secondary);padding:20px">Planilha vazia.</p>';
-        return;
-      }
+      if (!data || data.length === 0) { document.getElementById('fvTableContent').innerHTML = '<p style="color:var(--text-secondary);padding:20px">Planilha vazia.</p>'; return; }
       const headers = data[0];
       const rows = data.slice(1);
-      const headerHtml = headers.map(h => `<th>${escapeHtml(String(h))}</th>`).join('');
-      const rowsHtml = rows.map(row =>
-        `<tr>${headers.map((_, ci) => `<td>${escapeHtml(String(row[ci] ?? ''))}</td>`).join('')}</tr>`
-      ).join('');
-      document.getElementById('fvTableContent').innerHTML =
-        `<table class="fv-table"><thead><tr>${headerHtml}</tr></thead><tbody>${rowsHtml}</tbody></table>`;
+      document.getElementById('fvTableContent').innerHTML = `<table class="fv-table"><thead><tr>${headers.map(h=>`<th>${escapeHtml(String(h))}</th>`).join('')}</tr></thead><tbody>${rows.map(row=>`<tr>${headers.map((_,ci)=>`<td>${escapeHtml(String(row[ci]??''))}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
     };
   })(wb, sheets);
 }
@@ -1142,25 +1177,18 @@ function showFileError(body, msg, detail, icon = '⚠️', isInfo = false) {
 }
 
 function escapeHtml(str) {
-  return String(str)
-    .replace(/&/g,'&amp;')
-    .replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;')
-    .replace(/"/g,'&quot;');
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 </script>
 
 <script type="module">
-// ======= CONFIG =======
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const RISK_COLORS = {Baixo:'var(--success)',Médio:'var(--warning)',Alto:'var(--orange)',Crítico:'var(--danger)'};
 const STATUS_LABELS = ['Não agendado','Agendado','Concluído','Em andamento','Atrasado'];
 const MAX_FILE = 10*1024*1024;
 
-// ======= DADOS INICIAIS =======
-const DEFAULT_AUDITS = [{"id":1,"sap":"111020103","pn":"04E   129712B","client":"VW","desc":"COLETOR DE ADMISSÃO 1.6L EA211","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":2,"sap":"111020203","pn":"04C   133201K","client":"VW","desc":"COLETOR DE ADMISSÃO 1.0L EA211","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,2,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"Última Produção 14/08/2023","file":null},{"id":3,"sap":"111736102","pn":"04C   129607B","client":"VW","desc":"FILTRO DE AR - FOX - 04C 129 607 B EA211","family":"Motor/Radiador/AGS","risk":"Alto","months":[2,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"Última Produção 19/12/2022","file":null},{"id":4,"sap":"112106502","pn":"04C   129709A","client":"VW","desc":"COLETOR DE ADMISSÃO 1.0L TSI EA211","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":5,"sap":"112106800","pn":"04C   145673C","client":"VW","desc":"TUBO DE PRESSÃO 1.0 TSI EA211","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"Andréia Amâncio","status":"Aprovado","obs":"","file":null},{"id":6,"sap":"112177302","pn":"24587185","client":"GM","desc":"COLETOR DE ADMISSÃO GV4 1.0L GASOLINA","family":"Motor/Radiador/AGS","risk":"Alto","months":[2,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"Última Produção 09/05/2022","file":null},{"id":7,"sap":"112368001","pn":"04C   129611K","client":"VW","desc":"FILTRO DE AR - 04C 129 611K EA211","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"Andréia Amâncio","status":"Aprovado","obs":"","file":null},{"id":8,"sap":"112644402","pn":"5GB   121407C","client":"AUDI _VW","desc":"DEGAS BOTTLE W/O SILICABAG MQB","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":9,"sap":"112831200","pn":"6858413-00","client":"BMW","desc":"REAR COVER AERODYNAMIC LEFT F48","family":"Sob o capô","risk":"Baixo","months":[2,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"Última Produção 17/05/2022","file":null},{"id":10,"sap":"112831400","pn":"6858414-00","client":"BMW","desc":"REAR COVER AERODYNAMIC RIGHT F48","family":"Sob o capô","risk":"Baixo","months":[2,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"Última Produção 17/05/2022","file":null},{"id":11,"sap":"112896802","pn":"24586808","client":"GM","desc":"INTAKE MANIFOLD GV4 1,4L/1.8L GASOHOL","family":"Motor/Radiador/AGS","risk":"Alto","months":[2,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"Última Produção 25/04/2022","file":null},{"id":12,"sap":"113918001","pn":"2QB   129509","client":"VW","desc":"COLETOR DE AR 2QB 129509 MQB/MPI","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"Andréia Amâncio","status":"Aprovado","obs":"","file":null},{"id":13,"sap":"113918302","pn":"26322707","client":"GM","desc":"DUTO ENTRADA DE AR 26322707 GMB GEM","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,2,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":14,"sap":"113918401","pn":"26209793","client":"GM","desc":"DUCT ASM-AIR INL 26209793 GMB GEM","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,2,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":15,"sap":"113928605","pn":"13537035","client":"GM","desc":"RESERVATORIO EXPANSÃO 13537035 GEM","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":16,"sap":"113928802","pn":"26292495","client":"GM","desc":"CARCAÇA DE COMBUSTIVEL 26292495 GEM","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":17,"sap":"114106902","pn":"52051046","client":"GM","desc":"GM DEFLETOR DE ÁGUA SIST FLEX PM7 SCS","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"Última Produção 17/11/2021","file":null},{"id":18,"sap":"114107102","pn":"52051047","client":"GM","desc":"DEFLETOR DE ÁGUA PM7 SCS","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":19,"sap":"114107702","pn":"52088224","client":"GM","desc":"DEFLETOR INF.RAD.PM7 52088224 GM","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":20,"sap":"114107902","pn":"52104021","client":"GM","desc":"DEFLETOR SUP.RAD.GSV 52104021 GM","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"Última produção dia 12/01/2023","file":null},{"id":21,"sap":"114108102","pn":"52104020","client":"GM","desc":"DEFLETOR INF.RAD.GSV 52104020 GM","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"Última produção dia 05/01/2023","file":null},{"id":22,"sap":"114108302","pn":"52087524","client":"GM","desc":"DEFLETOR SUP.RAD.SPIN 52087524 GM","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"Última produção dia 20/09/2022","file":null},{"id":23,"sap":"114108506","pn":"26402607","client":"GM","desc":"PAINEL SEPARADOR AGUA -GRL 26602607 GEM","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":24,"sap":"114246303","pn":"26224654","client":"GM","desc":"TAMPA LATERAL DO CAPÔ 26224654 GEM","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":25,"sap":"114246403","pn":"26224655","client":"GM","desc":"TAMPA LATERAL DO CAPÔ 26224655 GEM","family":"Sob o capô","risk":"Baixo","months":[0,0,2,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":26,"sap":"114458801","pn":"94744776","client":"GM","desc":"DEFLETOR SUP. RAD. 4NB P&A 94744776 GM","family":"Sob o capô","risk":"Baixo","months":[2,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"Última Produção 29/08/2022","file":null},{"id":27,"sap":"114469801","pn":"04E   129611AB","client":"VW","desc":"FILTRO DE AR R4 TSI EA211","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"Andréia Amâncio","status":"Aprovado","obs":"","file":null},{"id":28,"sap":"114660801","pn":"24588756","client":"GM","desc":"BEAUTY ENGINE COVER 24588756 SGE","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":29,"sap":"114661001","pn":"26218100","client":"GM","desc":"DEFLETOR TURBO 1.2 ASPIRADO SUP 26218100","family":"Sob o capô","risk":"Baixo","months":[0,0,2,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":30,"sap":"114661101","pn":"26218101","client":"GM","desc":"DEFLETOR TURBO INFERIOR 26218101","family":"Sob o capô","risk":"Baixo","months":[0,0,2,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":31,"sap":"114661601","pn":"26248152","client":"GM","desc":"REFORÇO INFERIOR DO PARACHOQUE 26248152","family":"Sob o capô","risk":"Baixo","months":[0,0,2,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":32,"sap":"114685601","pn":"2GB   121407G","client":"VW","desc":"RESERVATÓRIO DE EXPANS. MQB27","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":33,"sap":"114685801","pn":"1SB 121 407 C","client":"VW","desc":"RESERVATÓRIO DE EXPANSÃO TSI","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,2,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"Última Produção 15/01/2022","file":null},{"id":34,"sap":"114690501","pn":"26227778","client":"GM","desc":"TAMPA LATERAL CAPÔ LH BSUV 26227778 GEM","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":35,"sap":"114690601","pn":"26227779","client":"GM","desc":"TAMPA LATERAL CAPÔ RH BSUV 26227779 GEM","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":36,"sap":"114691102","pn":"84751133","client":"GM","desc":"PAINEL SEPARADOR AGUA 84751133 GMI700","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":37,"sap":"114691302","pn":"84886702","client":"GM","desc":"EXTENSIONS RH 84886702 GMI700","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":38,"sap":"114691402","pn":"84886703","client":"GM","desc":"EXTENSIONS LH 84886703 GMI700","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":39,"sap":"114691501","pn":"26235211","client":"GM","desc":"ESCUDO PROTETOR DE AGUA 26235211 B-CAR","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":40,"sap":"114883601","pn":"26218102","client":"GM","desc":"DEFLETO DE AR SUP - 102 JBSC","family":"Sob o capô","risk":"Baixo","months":[0,0,2,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":41,"sap":"114883701","pn":"26218103","client":"GM","desc":"DEFLETOR DE AR INF, XXX103 JBSC","family":"Sob o capô","risk":"Baixo","months":[0,0,2,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":42,"sap":"114885501","pn":"26271784","client":"GM","desc":"DEFLETOR DE AR SUP 26271784 JBSC","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":43,"sap":"114885601","pn":"26271785","client":"GM","desc":"DEFLETOR DE AR INF 26271785 JBSC","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":44,"sap":"114891001","pn":"26292497","client":"GM","desc":"CARCAÇA DE COMBUSTIVEL 26292497 GEM","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":45,"sap":"114891101","pn":"26292496","client":"GM","desc":"DOOR 4NB ASM-F/TNK FIL 26292496 GEM","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":46,"sap":"114891203","pn":"26369112","client":"GM","desc":"CARCAÇA DE COMBUSTIVEL BSUV GEM","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":47,"sap":"114891301","pn":"26228004","client":"GM","desc":"DOOR BSUV ASM-F/TNK FIL 26228004 GEM","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":48,"sap":"114108702","pn":"26279904 \n(New: 52177547)","client":"GM","desc":"SUPORTE DO PARACHOQUE LH GEM","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":49,"sap":"114896001","pn":"26279905","client":"GM","desc":"SUPORTE DE PARACHOQUE SM RH GEM","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":50,"sap":"114896301","pn":"26279908","client":"GM","desc":"SUPORTE DE PARACHOQUE LH GEM","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":51,"sap":"114896401","pn":"26279909","client":"GM","desc":"SUPORTE DE PARACHOQUE RH GEM","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":52,"sap":"114896501","pn":"26227735","client":"GM","desc":"SUPORTE DE PARACHOQUE LH GEM","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":53,"sap":"114896601","pn":"26227736","client":"GM","desc":"SUPORTE DE PARACHOQUE RH GEM","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":54,"sap":"114903701","pn":"26223218","client":"GM","desc":"TAMPA COMBUSTIVEL - 5HB - 26223218 GEM","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":55,"sap":"114933601","pn":"26273633","client":"GM","desc":"DEFLETOR DE AR SUP XXX33 26273633","family":"Sob o capô","risk":"Baixo","months":[0,0,2,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"Peça não produziu no mês de Março. Produção realizada mês de Abril.","file":null},{"id":56,"sap":"114933701","pn":"26273634","client":"GM","desc":"DEFLETOR DE AR SUP XXX34 26273634","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":57,"sap":"115085805","pn":"26402609","client":"GM","desc":"PAINEL SEPARADOR AGUA C/ DEFLETOR GEM","family":"Sob o capô","risk":"Baixo","months":[0,0,2,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":58,"sap":"115163402","pn":"24589673","client":"GM","desc":"TUBO ENTRADA AGUA 24589673 GMI-700","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":59,"sap":"115325301","pn":"26251948","client":"GM","desc":"ESCUDO PROTETOR DE AGUA 26251948 B-SUV","family":"Sob o capô","risk":"Baixo","months":[0,0,2,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":60,"sap":"115407901","pn":"55282361","client":"Stellantis","desc":"Pescador de Oleo T4","family":"Motor/Radiador/AGS","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"Andréia Amâncio","status":"Aprovado","obs":"","file":null},{"id":61,"sap":"115482701","pn":"26252332","client":"GM","desc":"DEFLETOR DE AR INF ASM-RAD 1.2 NA JBSC","family":"Sob o capô","risk":"Baixo","months":[0,0,2,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":62,"sap":"115511501","pn":"84394077","client":"GM","desc":"DEFLETOR DE AR - RAD LD 84344077 GMI-700","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"Última Produção 26/11/2021","file":null},{"id":63,"sap":"115511601","pn":"84394078","client":"GM","desc":"DEFLETOR DE AR - RAD LE 84394078 GMI-700","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"Última Produção 26/11/2021","file":null},{"id":64,"sap":"115511701","pn":"84394079","client":"GM","desc":"DEFLETOR DE AR - RAD LD 84394079 GMI-700","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":65,"sap":"115511801","pn":"84394080","client":"GM","desc":"DEFLETOR DE AR - RAD LE 84394080 GMI-700","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":66,"sap":"115519302","pn":"04C.129.709.N","client":"VW","desc":"COLETOR TSI 1.0L 04C 129 709 N PL7","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"Andréia Amâncio","status":"Aprovado","obs":"","file":null},{"id":67,"sap":"115399502","pn":"04E.145.673.AP","client":"VW","desc":"Boost Air Pipe Flex 04E145673AP 1.4TSI","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":68,"sap":"115399602","pn":"04E.129.709.AS","client":"VW","desc":"Air Intake Manifold Flex/Sulev 1.4 TSI","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":69,"sap":"115519002","pn":"04E.129.712.BC","client":"VW","desc":"AIM MPI 1.0L 04C 133 201 AB PL7","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":70,"sap":"115519202","pn":"04C.145.673.J","client":"VW","desc":"BAP TSI 1.0L 04C 145 673 J PL7","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":71,"sap":"115519102","pn":"04C.133.201.AB","client":"VW","desc":"AIM MSI 1.6L 04E 129 712 BC PL7","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"Andréia Amâncio","status":"Aprovado","obs":"","file":null},{"id":72,"sap":"113410202","pn":"214F66380R","client":"RENAULT","desc":"AGS 214F66380R Duster HJD LEV7","family":"Motor/Radiador/AGS","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":73,"sap":"115918801","pn":"OM654  A9075285900","client":"Mercedes-Benz","desc":"FILTRO AR RWD (Euro 5/Euro 6)","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":74,"sap":"113928605","pn":"13545832","client":"GM","desc":"RESERVATORIO EXPANSÃO GEM","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":75,"sap":"116066601","pn":"628112463R","client":"RENAULT","desc":"GUIA DE AR SUPERIOR RAD U79 Ph2","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"Última Produção 31/05/2023","file":null},{"id":76,"sap":"116066701","pn":"628118910R","client":"RENAULT","desc":"GUIA DE AR SUPERIOR RAS U79 Ph2","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"Última Produção 31/05/2023","file":null},{"id":77,"sap":"115717001","pn":"215593208R","client":"RENAULT","desc":"GUIDE AIR 215593208R HJD","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"Andréia Amâncio","status":"Aprovado","obs":"","file":null},{"id":78,"sap":"115408101","pn":"215593009R","client":"RENAULT","desc":"Guide Air FR UPR 215593009R HHA","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"Última Produção 14/12/2022","file":null},{"id":79,"sap":"115717101","pn":"215597989R","client":"RENAULT","desc":"GUIDE AIR G 215597989R HJD","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":80,"sap":"115408401","pn":"215598832R","client":"RENAULT","desc":"Guide Air Inf 215598832R HHA","family":"Sob o capô","risk":"Baixo","months":[2,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"Última Produção 12/12/2022","file":null},{"id":81,"sap":"115408001","pn":"215594592R","client":"RENAULT","desc":"Guide Air Main 215594592R HHA","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"Última produção dia 22/07/2022","file":null},{"id":82,"sap":"115583401","pn":"628114829R","client":"RENAULT","desc":"Guide Air RAS UPR 628114829R HHA","family":"Sob o capô","risk":"Baixo","months":[2,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"Última Produção 14/12/2022","file":null},{"id":83,"sap":"115408301","pn":"215589688R","client":"RENAULT","desc":"Guide Air RH RAS 215589688R 2 HHA","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":84,"sap":"115716901","pn":"215595364R","client":"RENAULT","desc":"LOWER RADIATOR AIR GUIDE 215595364R HJD","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":85,"sap":"113818701","pn":"55282251","client":"Stellantis","desc":"TUBO PESCADOR DE OLEO T3 55282251","family":"Motor/Radiador/AGS","risk":"Baixo","months":[2,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"Última Produção 14/12/2022","file":null},{"id":86,"sap":"115717201","pn":"215590466R","client":"RENAULT","desc":"UPPER RADIATOR AIR GUIDE 215590466R HJD","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"Andréia Amâncio","status":"Aprovado","obs":"","file":null},{"id":87,"sap":"115855801","pn":"04E145673AQ","client":"VW","desc":"Boost Air Pipe Sulev 04E145673AQ 1.4TSI PL6","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":88,"sap":"116184803","pn":"74200T14A M003","client":"HONDA","desc":"COWL TOP ASSY FR T00A","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":89,"sap":"115888301","pn":"26275596","client":"GM","desc":"GUIDE ASM-FRT BPR FASCIA RH TWIN","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":90,"sap":"115888401","pn":"26275597","client":"GM","desc":"GUIDE ASM-RR BPR FASCIA BS LH TWIN","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":91,"sap":"115888501","pn":"26275598","client":"GM","desc":"GUIDE ASM-RR BPR FASCIA BS LH TWIN","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":92,"sap":"115888601","pn":"26322632","client":"GM","desc":"GUIDE ASM-RR BPR FASCIA T/LP LH TWIN","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":93,"sap":"115918701","pn":"OM654  A9075283300","client":"Daimler","desc":"Filtro de Ar (Euro 3) OM654","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,2,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":94,"sap":"116474101","pn":"742003M6AM006","client":"HONDA","desc":"COWL TOP ASSY FR 3M0A","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":95,"sap":"114678202","pn":"12705416","client":"GM","desc":"Air Intake Manifold CSS Prime PL7","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":96,"sap":"116518601","pn":"12707080","client":"GM","desc":"Air Intake Manifold CSS Prime PL6","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"Andréia Amâncio","status":"Aprovado","obs":"","file":null},{"id":97,"sap":"115894102","pn":"26426641","client":"GM","desc":"ALOJAMENTO DO TUBO DE ENCHIMENTO DO TANQ","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"Andréia Amâncio","status":"Aprovado","obs":"","file":null},{"id":98,"sap":"114677203","pn":"26426643","client":"GM","desc":"PORTINHOLA DE ENCHIMENTO DO TANQUE DE CO","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"Andréia Amâncio","status":"Aprovado","obs":"","file":null},{"id":99,"sap":"117421502","pn":"26438172","client":"GM","desc":"PAINEL DA GRADE DE ENTRADA DE AR JCCC","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"Andréia Amâncio","status":"Aprovado","obs":"","file":null},{"id":100,"sap":"117421703","pn":"52176323","client":"GM","desc":"EXTENSAO DO PAINEL DA GRADE ENTRADA RH","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"Andréia Amâncio","status":"Aprovado","obs":"","file":null},{"id":101,"sap":"117421603","pn":"52176324","client":"GM","desc":"EXTENSAO DO PAINEL DA GRADE ENTRADA LH","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"Andréia Amâncio","status":"Aprovado","obs":"","file":null},{"id":102,"sap":"117930501","pn":"52174535","client":"GM","desc":"DEFLETOR SUPERIOR JCCC RS","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":103,"sap":"117803100","pn":"26405888","client":"GM","desc":"DEFLETOR DE AR SUPERIOR JBUC RS","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":104,"sap":"117803200","pn":"26405889","client":"GM","desc":"DEFLETOR DE AR INFERIOR JBUC RS","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null}];
+const DEFAULT_AUDITS = [{"id":1,"sap":"111020103","pn":"04E   129712B","client":"VW","desc":"COLETOR DE ADMISSÃO 1.6L EA211","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":2,"sap":"111020203","pn":"04C   133201K","client":"VW","desc":"COLETOR DE ADMISSÃO 1.0L EA211","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,2,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"Última Produção 14/08/2023","file":null},{"id":3,"sap":"111736102","pn":"04C   129607B","client":"VW","desc":"FILTRO DE AR - FOX - 04C 129 607 B EA211","family":"Motor/Radiador/AGS","risk":"Alto","months":[2,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"Última Produção 19/12/2022","file":null},{"id":4,"sap":"112106502","pn":"04C   129709A","client":"VW","desc":"COLETOR DE ADMISSÃO 1.0L TSI EA211","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":5,"sap":"112106800","pn":"04C   145673C","client":"VW","desc":"TUBO DE PRESSÃO 1.0 TSI EA211","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"Andréia Amâncio","status":"Aprovado","obs":"","file":null},{"id":6,"sap":"112177302","pn":"24587185","client":"GM","desc":"COLETOR DE ADMISSÃO GV4 1.0L GASOLINA","family":"Motor/Radiador/AGS","risk":"Alto","months":[2,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"Última Produção 09/05/2022","file":null},{"id":7,"sap":"112368001","pn":"04C   129611K","client":"VW","desc":"FILTRO DE AR - 04C 129 611K EA211","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"Andréia Amâncio","status":"Aprovado","obs":"","file":null},{"id":8,"sap":"112644402","pn":"5GB   121407C","client":"AUDI _VW","desc":"DEGAS BOTTLE W/O SILICABAG MQB","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":9,"sap":"112831200","pn":"6858413-00","client":"BMW","desc":"REAR COVER AERODYNAMIC LEFT F48","family":"Sob o capô","risk":"Baixo","months":[2,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"Última Produção 17/05/2022","file":null},{"id":10,"sap":"112831400","pn":"6858414-00","client":"BMW","desc":"REAR COVER AERODYNAMIC RIGHT F48","family":"Sob o capô","risk":"Baixo","months":[2,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"Última Produção 17/05/2022","file":null},{"id":11,"sap":"112896802","pn":"24586808","client":"GM","desc":"INTAKE MANIFOLD GV4 1,4L/1.8L GASOHOL","family":"Motor/Radiador/AGS","risk":"Alto","months":[2,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"Última Produção 25/04/2022","file":null},{"id":12,"sap":"113918001","pn":"2QB   129509","client":"VW","desc":"COLETOR DE AR 2QB 129509 MQB/MPI","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"Andréia Amâncio","status":"Aprovado","obs":"","file":null},{"id":13,"sap":"113918302","pn":"26322707","client":"GM","desc":"DUTO ENTRADA DE AR 26322707 GMB GEM","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,2,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":14,"sap":"113918401","pn":"26209793","client":"GM","desc":"DUCT ASM-AIR INL 26209793 GMB GEM","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,2,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":15,"sap":"113928605","pn":"13537035","client":"GM","desc":"RESERVATORIO EXPANSÃO 13537035 GEM","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":16,"sap":"113928802","pn":"26292495","client":"GM","desc":"CARCAÇA DE COMBUSTIVEL 26292495 GEM","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":17,"sap":"114106902","pn":"52051046","client":"GM","desc":"GM DEFLETOR DE ÁGUA SIST FLEX PM7 SCS","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"Última Produção 17/11/2021","file":null},{"id":18,"sap":"114107102","pn":"52051047","client":"GM","desc":"DEFLETOR DE ÁGUA PM7 SCS","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":19,"sap":"114107702","pn":"52088224","client":"GM","desc":"DEFLETOR INF.RAD.PM7 52088224 GM","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":20,"sap":"114107902","pn":"52104021","client":"GM","desc":"DEFLETOR SUP.RAD.GSV 52104021 GM","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"Última produção dia 12/01/2023","file":null},{"id":21,"sap":"114108102","pn":"52104020","client":"GM","desc":"DEFLETOR INF.RAD.GSV 52104020 GM","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"Última produção dia 05/01/2023","file":null},{"id":22,"sap":"114108302","pn":"52087524","client":"GM","desc":"DEFLETOR SUP.RAD.SPIN 52087524 GM","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"Última produção dia 20/09/2022","file":null},{"id":23,"sap":"114108506","pn":"26402607","client":"GM","desc":"PAINEL SEPARADOR AGUA -GRL 26602607 GEM","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":24,"sap":"114246303","pn":"26224654","client":"GM","desc":"TAMPA LATERAL DO CAPÔ 26224654 GEM","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":25,"sap":"114246403","pn":"26224655","client":"GM","desc":"TAMPA LATERAL DO CAPÔ 26224655 GEM","family":"Sob o capô","risk":"Baixo","months":[0,0,2,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":26,"sap":"114458801","pn":"94744776","client":"GM","desc":"DEFLETOR SUP. RAD. 4NB P&A 94744776 GM","family":"Sob o capô","risk":"Baixo","months":[2,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"Última Produção 29/08/2022","file":null},{"id":27,"sap":"114469801","pn":"04E   129611AB","client":"VW","desc":"FILTRO DE AR R4 TSI EA211","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"Andréia Amâncio","status":"Aprovado","obs":"","file":null},{"id":28,"sap":"114660801","pn":"24588756","client":"GM","desc":"BEAUTY ENGINE COVER 24588756 SGE","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":29,"sap":"114661001","pn":"26218100","client":"GM","desc":"DEFLETOR TURBO 1.2 ASPIRADO SUP 26218100","family":"Sob o capô","risk":"Baixo","months":[0,0,2,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":30,"sap":"114661101","pn":"26218101","client":"GM","desc":"DEFLETOR TURBO INFERIOR 26218101","family":"Sob o capô","risk":"Baixo","months":[0,0,2,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":31,"sap":"114661601","pn":"26248152","client":"GM","desc":"REFORÇO INFERIOR DO PARACHOQUE 26248152","family":"Sob o capô","risk":"Baixo","months":[0,0,2,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":32,"sap":"114685601","pn":"2GB   121407G","client":"VW","desc":"RESERVATÓRIO DE EXPANS. MQB27","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":33,"sap":"114685801","pn":"1SB 121 407 C","client":"VW","desc":"RESERVATÓRIO DE EXPANSÃO TSI","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,2,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"Última Produção 15/01/2022","file":null},{"id":34,"sap":"114690501","pn":"26227778","client":"GM","desc":"TAMPA LATERAL CAPÔ LH BSUV 26227778 GEM","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":35,"sap":"114690601","pn":"26227779","client":"GM","desc":"TAMPA LATERAL CAPÔ RH BSUV 26227779 GEM","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":36,"sap":"114691102","pn":"84751133","client":"GM","desc":"PAINEL SEPARADOR AGUA 84751133 GMI700","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":37,"sap":"114691302","pn":"84886702","client":"GM","desc":"EXTENSIONS RH 84886702 GMI700","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":38,"sap":"114691402","pn":"84886703","client":"GM","desc":"EXTENSIONS LH 84886703 GMI700","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":39,"sap":"114691501","pn":"26235211","client":"GM","desc":"ESCUDO PROTETOR DE AGUA 26235211 B-CAR","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":40,"sap":"114883601","pn":"26218102","client":"GM","desc":"DEFLETO DE AR SUP - 102 JBSC","family":"Sob o capô","risk":"Baixo","months":[0,0,2,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":41,"sap":"114883701","pn":"26218103","client":"GM","desc":"DEFLETOR DE AR INF, XXX103 JBSC","family":"Sob o capô","risk":"Baixo","months":[0,0,2,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":42,"sap":"114885501","pn":"26271784","client":"GM","desc":"DEFLETOR DE AR SUP 26271784 JBSC","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":43,"sap":"114885601","pn":"26271785","client":"GM","desc":"DEFLETOR DE AR INF 26271785 JBSC","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":44,"sap":"114891001","pn":"26292497","client":"GM","desc":"CARCAÇA DE COMBUSTIVEL 26292497 GEM","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":45,"sap":"114891101","pn":"26292496","client":"GM","desc":"DOOR 4NB ASM-F/TNK FIL 26292496 GEM","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":46,"sap":"114891203","pn":"26369112","client":"GM","desc":"CARCAÇA DE COMBUSTIVEL BSUV GEM","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":47,"sap":"114891301","pn":"26228004","client":"GM","desc":"DOOR BSUV ASM-F/TNK FIL 26228004 GEM","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":48,"sap":"114108702","pn":"26279904","client":"GM","desc":"SUPORTE DO PARACHOQUE LH GEM","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":49,"sap":"114896001","pn":"26279905","client":"GM","desc":"SUPORTE DE PARACHOQUE SM RH GEM","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":50,"sap":"114896301","pn":"26279908","client":"GM","desc":"SUPORTE DE PARACHOQUE LH GEM","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":51,"sap":"114896401","pn":"26279909","client":"GM","desc":"SUPORTE DE PARACHOQUE RH GEM","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":52,"sap":"114896501","pn":"26227735","client":"GM","desc":"SUPORTE DE PARACHOQUE LH GEM","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":53,"sap":"114896601","pn":"26227736","client":"GM","desc":"SUPORTE DE PARACHOQUE RH GEM","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":54,"sap":"114903701","pn":"26223218","client":"GM","desc":"TAMPA COMBUSTIVEL - 5HB - 26223218 GEM","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":55,"sap":"114933601","pn":"26273633","client":"GM","desc":"DEFLETOR DE AR SUP XXX33 26273633","family":"Sob o capô","risk":"Baixo","months":[0,0,2,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"Peça não produziu no mês de Março.","file":null},{"id":56,"sap":"114933701","pn":"26273634","client":"GM","desc":"DEFLETOR DE AR SUP XXX34 26273634","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":57,"sap":"115085805","pn":"26402609","client":"GM","desc":"PAINEL SEPARADOR AGUA C/ DEFLETOR GEM","family":"Sob o capô","risk":"Baixo","months":[0,0,2,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":58,"sap":"115163402","pn":"24589673","client":"GM","desc":"TUBO ENTRADA AGUA 24589673 GMI-700","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":59,"sap":"115325301","pn":"26251948","client":"GM","desc":"ESCUDO PROTETOR DE AGUA 26251948 B-SUV","family":"Sob o capô","risk":"Baixo","months":[0,0,2,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":60,"sap":"115407901","pn":"55282361","client":"Stellantis","desc":"Pescador de Oleo T4","family":"Motor/Radiador/AGS","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"Andréia Amâncio","status":"Aprovado","obs":"","file":null},{"id":61,"sap":"115482701","pn":"26252332","client":"GM","desc":"DEFLETOR DE AR INF ASM-RAD 1.2 NA JBSC","family":"Sob o capô","risk":"Baixo","months":[0,0,2,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":62,"sap":"115511501","pn":"84394077","client":"GM","desc":"DEFLETOR DE AR - RAD LD 84344077 GMI-700","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"Última Produção 26/11/2021","file":null},{"id":63,"sap":"115511601","pn":"84394078","client":"GM","desc":"DEFLETOR DE AR - RAD LE 84394078 GMI-700","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"Última Produção 26/11/2021","file":null},{"id":64,"sap":"115511701","pn":"84394079","client":"GM","desc":"DEFLETOR DE AR - RAD LD 84394079 GMI-700","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":65,"sap":"115511801","pn":"84394080","client":"GM","desc":"DEFLETOR DE AR - RAD LE 84394080 GMI-700","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":66,"sap":"115519302","pn":"04C.129.709.N","client":"VW","desc":"COLETOR TSI 1.0L 04C 129 709 N PL7","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"Andréia Amâncio","status":"Aprovado","obs":"","file":null},{"id":67,"sap":"115399502","pn":"04E.145.673.AP","client":"VW","desc":"Boost Air Pipe Flex 04E145673AP 1.4TSI","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":68,"sap":"115399602","pn":"04E.129.709.AS","client":"VW","desc":"Air Intake Manifold Flex/Sulev 1.4 TSI","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":69,"sap":"115519002","pn":"04E.129.712.BC","client":"VW","desc":"AIM MPI 1.0L 04C 133 201 AB PL7","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":70,"sap":"115519202","pn":"04C.145.673.J","client":"VW","desc":"BAP TSI 1.0L 04C 145 673 J PL7","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":71,"sap":"115519102","pn":"04C.133.201.AB","client":"VW","desc":"AIM MSI 1.6L 04E 129 712 BC PL7","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"Andréia Amâncio","status":"Aprovado","obs":"","file":null},{"id":72,"sap":"113410202","pn":"214F66380R","client":"RENAULT","desc":"AGS 214F66380R Duster HJD LEV7","family":"Motor/Radiador/AGS","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":73,"sap":"115918801","pn":"OM654  A9075285900","client":"Mercedes-Benz","desc":"FILTRO AR RWD (Euro 5/Euro 6)","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":74,"sap":"113928605","pn":"13545832","client":"GM","desc":"RESERVATORIO EXPANSÃO GEM","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":75,"sap":"116066601","pn":"628112463R","client":"RENAULT","desc":"GUIA DE AR SUPERIOR RAD U79 Ph2","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"Última Produção 31/05/2023","file":null},{"id":76,"sap":"116066701","pn":"628118910R","client":"RENAULT","desc":"GUIA DE AR SUPERIOR RAS U79 Ph2","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"Última Produção 31/05/2023","file":null},{"id":77,"sap":"115717001","pn":"215593208R","client":"RENAULT","desc":"GUIDE AIR 215593208R HJD","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"Andréia Amâncio","status":"Aprovado","obs":"","file":null},{"id":78,"sap":"115408101","pn":"215593009R","client":"RENAULT","desc":"Guide Air FR UPR 215593009R HHA","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"Última Produção 14/12/2022","file":null},{"id":79,"sap":"115717101","pn":"215597989R","client":"RENAULT","desc":"GUIDE AIR G 215597989R HJD","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":80,"sap":"115408401","pn":"215598832R","client":"RENAULT","desc":"Guide Air Inf 215598832R HHA","family":"Sob o capô","risk":"Baixo","months":[2,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"Última Produção 12/12/2022","file":null},{"id":81,"sap":"115408001","pn":"215594592R","client":"RENAULT","desc":"Guide Air Main 215594592R HHA","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"Última produção dia 22/07/2022","file":null},{"id":82,"sap":"115583401","pn":"628114829R","client":"RENAULT","desc":"Guide Air RAS UPR 628114829R HHA","family":"Sob o capô","risk":"Baixo","months":[2,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"Última Produção 14/12/2022","file":null},{"id":83,"sap":"115408301","pn":"215589688R","client":"RENAULT","desc":"Guide Air RH RAS 215589688R 2 HHA","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":84,"sap":"115716901","pn":"215595364R","client":"RENAULT","desc":"LOWER RADIATOR AIR GUIDE 215595364R HJD","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":85,"sap":"113818701","pn":"55282251","client":"Stellantis","desc":"TUBO PESCADOR DE OLEO T3 55282251","family":"Motor/Radiador/AGS","risk":"Baixo","months":[2,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"Última Produção 14/12/2022","file":null},{"id":86,"sap":"115717201","pn":"215590466R","client":"RENAULT","desc":"UPPER RADIATOR AIR GUIDE 215590466R HJD","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"Andréia Amâncio","status":"Aprovado","obs":"","file":null},{"id":87,"sap":"115855801","pn":"04E145673AQ","client":"VW","desc":"Boost Air Pipe Sulev 04E145673AQ 1.4TSI PL6","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":88,"sap":"116184803","pn":"74200T14A M003","client":"HONDA","desc":"COWL TOP ASSY FR T00A","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":89,"sap":"115888301","pn":"26275596","client":"GM","desc":"GUIDE ASM-FRT BPR FASCIA RH TWIN","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":90,"sap":"115888401","pn":"26275597","client":"GM","desc":"GUIDE ASM-RR BPR FASCIA BS LH TWIN","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":91,"sap":"115888501","pn":"26275598","client":"GM","desc":"GUIDE ASM-RR BPR FASCIA BS LH TWIN","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":92,"sap":"115888601","pn":"26322632","client":"GM","desc":"GUIDE ASM-RR BPR FASCIA T/LP LH TWIN","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":93,"sap":"115918701","pn":"OM654  A9075283300","client":"Daimler","desc":"Filtro de Ar (Euro 3) OM654","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,2,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":94,"sap":"116474101","pn":"742003M6AM006","client":"HONDA","desc":"COWL TOP ASSY FR 3M0A","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":95,"sap":"114678202","pn":"12705416","client":"GM","desc":"Air Intake Manifold CSS Prime PL7","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":96,"sap":"116518601","pn":"12707080","client":"GM","desc":"Air Intake Manifold CSS Prime PL6","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"Andréia Amâncio","status":"Aprovado","obs":"","file":null},{"id":97,"sap":"115894102","pn":"26426641","client":"GM","desc":"ALOJAMENTO DO TUBO DE ENCHIMENTO DO TANQ","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"Andréia Amâncio","status":"Aprovado","obs":"","file":null},{"id":98,"sap":"114677203","pn":"26426643","client":"GM","desc":"PORTINHOLA DE ENCHIMENTO DO TANQUE DE CO","family":"Motor/Radiador/AGS","risk":"Alto","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"Andréia Amâncio","status":"Aprovado","obs":"","file":null},{"id":99,"sap":"117421502","pn":"26438172","client":"GM","desc":"PAINEL DA GRADE DE ENTRADA DE AR JCCC","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"Andréia Amâncio","status":"Aprovado","obs":"","file":null},{"id":100,"sap":"117421703","pn":"52176323","client":"GM","desc":"EXTENSAO DO PAINEL DA GRADE ENTRADA RH","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"Andréia Amâncio","status":"Aprovado","obs":"","file":null},{"id":101,"sap":"117421603","pn":"52176324","client":"GM","desc":"EXTENSAO DO PAINEL DA GRADE ENTRADA LH","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"Andréia Amâncio","status":"Aprovado","obs":"","file":null},{"id":102,"sap":"117930501","pn":"52174535","client":"GM","desc":"DEFLETOR SUPERIOR JCCC RS","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":103,"sap":"117803100","pn":"26405888","client":"GM","desc":"DEFLETOR DE AR SUPERIOR JBUC RS","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null},{"id":104,"sap":"117803200","pn":"26405889","client":"GM","desc":"DEFLETOR DE AR INFERIOR JBUC RS","family":"Sob o capô","risk":"Baixo","months":[0,0,0,0,0,0,0,0,0,0,0,0],"resp":"","status":"Pendente","obs":"","file":null}];
 
-// ======= FIREBASE — Firestore (sincronização em tempo real entre dispositivos) =======
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import {
   getFirestore, collection, doc, setDoc, deleteDoc,
@@ -1181,11 +1209,10 @@ const db     = getFirestore(fbApp);
 const COL    = collection(db, 'audits');
 const PREF   = collection(db, 'prefs');
 
-let _saveTimer      = null;
-let _unsubscribe    = null;   // listener em tempo real
-let _syncEnabled    = true;   // pausa escuta durante salvamento local para evitar loop
+let _saveTimer   = null;
+let _unsubscribe = null;
+let _syncEnabled = true;
 
-// Salva tema no Firestore
 async function savePref(key, value) {
   try { await setDoc(doc(PREF, key), { value }); } catch(e) {
     try { localStorage.setItem(key, value); } catch(e2) {}
@@ -1201,43 +1228,39 @@ async function loadPref(key, fallback = '') {
   }
 }
 
-// ---- SAVE ----
-// Usa writeBatch para salvar todas as auditorias de forma atômica e eficiente
 async function saveAudits() {
   setCloudStatus('saving');
   clearTimeout(_saveTimer);
   _saveTimer = setTimeout(async () => {
-    _syncEnabled = false;  // pausa o listener enquanto salva
+    _syncEnabled = false;
     try {
-      // Remove todas as auditorias existentes e reescreve (suporta deleções)
       const existing = await getDocs(COL);
       const batch    = writeBatch(db);
-
-      // Deleta documentos que não existem mais
       const currentIds = new Set(state.audits.map(a => String(a.id)));
       existing.docs.forEach(d => { if (!currentIds.has(d.id)) batch.delete(d.ref); });
-
-      // Salva/atualiza cada auditoria
-      // Arquivos base64 grandes são mantidos apenas no cache local (IndexedDB)
-      // para não exceder os 1MB por documento do Firestore
       state.audits.forEach(a => {
-        const toSave = { ...a };
-        // Se o arquivo for grande (>500KB em base64), salva só metadados no Firestore
-        if (toSave.file?.data && toSave.file.data.length > 500000) {
-          toSave.file = { name: toSave.file.name, size: toSave.file.size, type: toSave.file.type, data: null };
+        const toSave = { ...a, files: {} };
+        // Para cada arquivo por mês: se muito grande, salva só metadados no Firestore
+        if (a.files) {
+          Object.entries(a.files).forEach(([mi, f]) => {
+            if (f?.data && f.data.length > 500000) {
+              toSave.files[mi] = { name: f.name, size: f.size, type: f.type, data: null };
+            } else {
+              toSave.files[mi] = f;
+            }
+          });
         }
+        // Remove campo legado se existir
+        delete toSave.file;
         batch.set(doc(COL, String(a.id)), toSave);
       });
-
       await batch.commit();
       setCloudStatus('saved');
-
-      // Salva cache local (IndexedDB) com arquivos completos
       _saveLocalCache();
     } catch(e) {
       console.error('Firebase save error:', e);
       setCloudStatus('error');
-      notify('⚠️ Erro ao salvar na nuvem. Tentando salvar localmente...', 'warn');
+      notify('⚠️ Erro ao salvar na nuvem. Salvando localmente...', 'warn');
       _saveLocalCache();
     } finally {
       setTimeout(() => { _syncEnabled = true; }, 800);
@@ -1245,15 +1268,22 @@ async function saveAudits() {
   }, 600);
 }
 
-// Cache local no IndexedDB — mantém arquivos grandes offline
 function _saveLocalCache() {
   try {
-    const lean = state.audits.map(a => ({
-      ...a,
-      file: a.file ? { name: a.file.name, size: a.file.size, type: a.file.type, data: a.file.data || null } : null
-    }));
-    localStorage.setItem('audits_t1_cache', JSON.stringify(lean));
-  } catch(e) {}
+    // Preserva os dados completos (incluindo base64 dos arquivos por mês)
+    localStorage.setItem('audits_t1_cache', JSON.stringify(state.audits));
+  } catch(e) {
+    // Se localStorage cheio, tenta salvar sem os dados dos arquivos
+    try {
+      const lean = state.audits.map(a => ({
+        ...a,
+        files: Object.fromEntries(
+          Object.entries(a.files || {}).map(([mi, f]) => [mi, f ? {name:f.name,size:f.size,type:f.type,data:null} : null])
+        )
+      }));
+      localStorage.setItem('audits_t1_cache', JSON.stringify(lean));
+    } catch(e2) {}
+  }
 }
 function _loadLocalCache() {
   try {
@@ -1263,19 +1293,28 @@ function _loadLocalCache() {
   return null;
 }
 
-// ---- LOAD ----
 async function loadLocalAudits() {
   setCloudStatus('loading');
   try {
     const snap = await getDocs(COL);
     if (!snap.empty) {
       const fromFirebase = snap.docs.map(d => d.data()).sort((a, b) => a.id - b.id);
-      // Mescla dados de arquivos do cache local (arquivos grandes que não foram para o Firestore)
+      // Mescla dados de arquivos por mês do cache local (arquivos grandes que não foram para o Firestore)
       const cache = _loadLocalCache();
       if (cache) {
         const cacheMap = Object.fromEntries(cache.map(a => [a.id, a]));
         fromFirebase.forEach(a => {
-          if (!a.file?.data && cacheMap[a.id]?.file?.data) a.file = cacheMap[a.id].file;
+          if (!a.files) a.files = {};
+          const ca = cacheMap[a.id];
+          if (ca?.files) {
+            Object.entries(ca.files).forEach(([mi, cf]) => {
+              if (cf?.data && (!a.files[mi]?.data)) {
+                a.files[mi] = cf;
+              }
+            });
+          }
+          // Migração legado
+          if (!a.files && ca?.file) { a.files = {}; }
         });
       }
       return fromFirebase;
@@ -1284,24 +1323,28 @@ async function loadLocalAudits() {
     console.warn('Firebase load failed, using cache:', e);
     setCloudStatus('offline');
   }
-  // Fallback: cache local → localStorage legado → dados padrão
   return _loadLocalCache()
       || (() => { try { const s=localStorage.getItem('audits_t1_2026'); if(s){const p=JSON.parse(s);if(p.length)return p;} } catch(e){} return null; })()
       || JSON.parse(JSON.stringify(DEFAULT_AUDITS));
 }
 
-// ---- LISTENER TEMPO REAL ----
-// Escuta alterações no Firestore feitas por outros usuários e atualiza a UI automaticamente
 function startRealtimeSync() {
   if (_unsubscribe) _unsubscribe();
   _unsubscribe = onSnapshot(COL,
     snap => {
-      if (!_syncEnabled) return;  // ignora updates durante salvamento local
+      if (!_syncEnabled) return;
       const incoming = snap.docs.map(d => d.data()).sort((a, b) => a.id - b.id);
       if (!incoming.length) return;
-      // Mescla arquivos locais (que podem não ter ido ao Firestore)
       const localMap = Object.fromEntries(state.audits.map(a => [a.id, a]));
-      incoming.forEach(a => { if (!a.file?.data && localMap[a.id]?.file?.data) a.file = localMap[a.id].file; });
+      incoming.forEach(a => {
+        if (!a.files) a.files = {};
+        const la = localMap[a.id];
+        if (la?.files) {
+          Object.entries(la.files).forEach(([mi, lf]) => {
+            if (lf?.data && !a.files[mi]?.data) a.files[mi] = lf;
+          });
+        }
+      });
       state.audits   = incoming;
       state.filtered = [...state.audits];
       updateFilterOptions();
@@ -1310,10 +1353,7 @@ function startRealtimeSync() {
       renderGantt();
       setCloudStatus('synced');
     },
-    err => {
-      console.warn('Firestore listener error:', err);
-      setCloudStatus('offline');
-    }
+    err => { console.warn('Firestore listener error:', err); setCloudStatus('offline'); }
   );
 }
 
@@ -1360,9 +1400,7 @@ function importBackupJSON(file) {
       renderGantt();
       notify(`✅ ${list.length} auditorias restauradas do backup!`);
       closeImportModal();
-    } catch(e) {
-      notify('Erro ao ler JSON: ' + e.message, 'error');
-    }
+    } catch(e) { notify('Erro ao ler JSON: ' + e.message, 'error'); }
   };
   reader.readAsText(file);
 }
@@ -1370,20 +1408,17 @@ function importBackupJSON(file) {
 state.audits   = [];
 state.filtered = [];
 
-// ======= INIT (async — aguarda IndexedDB) =======
 async function init() {
   document.getElementById('loading').classList.add('active');
   document.getElementById('loadingMsg').textContent = 'Carregando dados...';
   setCloudStatus('loading');
 
-  // Tema
   const th = await loadPref('theme_t1', '');
   if (th === 'light') {
     document.body.classList.add('light');
     document.getElementById('themeIcon').textContent = '☀️';
   }
 
-  // Carrega dados do IndexedDB (ou fallback)
   state.audits   = await loadLocalAudits();
   state.filtered = [...state.audits];
 
@@ -1400,8 +1435,6 @@ async function init() {
   });
 
   document.getElementById('loading').classList.remove('active');
-
-  // Inicia listener em tempo real — atualiza UI quando outro usuário altera dados
   startRealtimeSync();
 }
 
@@ -1467,7 +1500,6 @@ function renderRisk() {
     </tr>`;
   }).join('');
 
-  // FIX 1: Usa o ID correto "riskBarChart" (exclusivo desta tela)
   destroyCharts('riskBarChart');
   const {text} = getChartColors();
   const labels = sorted.map(r => r.produto.length > 18 ? r.produto.substring(0,18)+'…' : r.produto);
@@ -1500,7 +1532,17 @@ function renderRisk() {
       scales: {
         x: {min:0, max:10, grid:{color:'rgba(255,255,255,.05)'}, ticks:{color:text, stepSize:1}},
         y: {grid:{display:false}, ticks:{color:text, font:{size:11}}}
-      }
+      },
+      onClick(e, els) {
+        if (!els.length) return;
+        const r = sorted[els[0].index];
+        const lv = getRiskLevel(r.score);
+        // Mapeia nível do produto para risco da auditoria
+        const riskMap = {Crítico:'Alto', Alto:'Alto', Baixo:'Baixo'};
+        applyChartFilter('risk', riskMap[lv.label] || 'Alto');
+        notify('Filtro: ' + lv.label + ' → ' + r.produto);
+      },
+      onHover(e) { e.native.target.style.cursor = 'pointer'; }
     }
   });
 }
@@ -1535,47 +1577,125 @@ function destroyCharts(...keys) {
 
 function renderCharts() {
   const {text, grid} = getChartColors();
-  // FIX 1: Usa "dashRiskChart" para o gráfico do dashboard
   destroyCharts('monthly','status','dashRiskChart','client','alertMonthChart','alertClientChart');
 
   const monthly = Array(12).fill(0);
   state.audits.forEach(a => a.months.forEach((v,i) => { if(v>0) monthly[i]++; }));
 
+  // ---- Volume Mensal — clicável ----
   state.charts.monthly = new Chart('monthlyChart', {
     type: 'bar',
-    data: {labels:MONTHS, datasets:[{data:monthly, backgroundColor:monthly.map(v=>v>0?'rgba(0,198,255,.75)':'rgba(255,255,255,.05)'), borderRadius:7, borderSkipped:false}]},
-    options: {responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true,grid:{color:grid},ticks:{color:text,stepSize:1}},x:{grid:{display:false},ticks:{color:text}}}}
+    data: {
+      labels: MONTHS,
+      datasets:[{
+        data: monthly,
+        backgroundColor: monthly.map(v => v>0 ? 'rgba(0,198,255,.75)' : 'rgba(255,255,255,.05)'),
+        borderRadius: 7,
+        borderSkipped: false
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: {display: false},
+        tooltip: {callbacks: {title:([i]) => MONTHS[i.dataIndex], label: ctx => `${ctx.raw} auditoria(s)`}}
+      },
+      scales: {
+        y:{beginAtZero:true,grid:{color:grid},ticks:{color:text,stepSize:1}},
+        x:{grid:{display:false},ticks:{color:text}}
+      },
+      onClick(e, els) {
+        if (!els.length) return;
+        const idx = els[0].index;
+        applyChartFilter('month', String(idx));
+        notify('Filtro aplicado: ' + MONTHS[idx]);
+      },
+      onHover(e) { e.native.target.style.cursor = 'pointer'; }
+    }
   });
 
+  // ---- Status (doughnut) — clicável ----
   const appr = state.audits.filter(a => a.status==='Aprovado').length;
   const repr = state.audits.filter(a => a.status==='Reprovado').length;
   const pend = state.audits.filter(a => a.status==='Pendente').length;
+  const statusLabelsMap = ['Aprovado','Reprovado','Pendente'];
   state.charts.status = new Chart('statusChart', {
     type: 'doughnut',
-    data: {labels:['Aprovado','Reprovado','Pendente'], datasets:[{data:[appr,repr,pend], backgroundColor:['rgba(0,230,118,.8)','rgba(255,61,87,.8)','rgba(255,179,0,.85)'], borderWidth:0, hoverOffset:8}]},
-    options: {responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom',labels:{color:text,padding:16,usePointStyle:true}}}, cutout:'72%'}
+    data: {
+      labels: statusLabelsMap,
+      datasets:[{
+        data:[appr,repr,pend],
+        backgroundColor:['rgba(0,230,118,.8)','rgba(255,61,87,.8)','rgba(255,179,0,.85)'],
+        borderWidth:0, hoverOffset:8
+      }]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{color:text,padding:16,usePointStyle:true}}},
+      cutout:'72%',
+      onClick(e, els) {
+        if (!els.length) return;
+        const val = statusLabelsMap[els[0].index];
+        applyChartFilter('status', val);
+        notify('Filtro aplicado: ' + val);
+      },
+      onHover(e) { e.native.target.style.cursor = 'pointer'; }
+    }
   });
 
+  // ---- Risco — clicável ----
   const rc = {Baixo:0, Médio:0, Alto:0, Crítico:0};
   state.audits.forEach(a => rc[a.risk] = (rc[a.risk]||0)+1);
-  // FIX 1: Canvas com ID "dashRiskChart" para o dashboard
+  const rcLabels = Object.keys(rc);
   state.charts.dashRiskChart = new Chart('dashRiskChart', {
     type: 'bar',
-    data: {labels:Object.keys(rc), datasets:[{data:Object.values(rc), backgroundColor:['rgba(0,230,118,.8)','rgba(255,179,0,.8)','rgba(255,108,47,.8)','rgba(255,61,87,.8)'], borderRadius:7}]},
-    options: {indexAxis:'y', responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{x:{beginAtZero:true,grid:{color:grid},ticks:{color:text,stepSize:1}},y:{grid:{display:false},ticks:{color:text}}}}
+    data: {
+      labels: rcLabels,
+      datasets:[{
+        data: Object.values(rc),
+        backgroundColor:['rgba(0,230,118,.8)','rgba(255,179,0,.8)','rgba(255,108,47,.8)','rgba(255,61,87,.8)'],
+        borderRadius:7
+      }]
+    },
+    options: {
+      indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{x:{beginAtZero:true,grid:{color:grid},ticks:{color:text,stepSize:1}},y:{grid:{display:false},ticks:{color:text}}},
+      onClick(e, els) {
+        if (!els.length) return;
+        const val = rcLabels[els[0].index];
+        applyChartFilter('risk', val);
+        notify('Filtro aplicado: Risco ' + val);
+      },
+      onHover(e) { e.native.target.style.cursor = 'pointer'; }
+    }
   });
 
+  // ---- Por Cliente — clicável ----
   const cc = {};
   state.audits.forEach(a => cc[a.client] = (cc[a.client]||0)+1);
   const sorted = Object.entries(cc).sort((a,b) => b[1]-a[1]).slice(0,6);
   state.charts.client = new Chart('clientChart', {
     type: 'bar',
-    data: {labels:sorted.map(c=>c[0]), datasets:[{data:sorted.map(c=>c[1]), backgroundColor:'rgba(0,198,255,.7)', borderRadius:7}]},
-    options: {indexAxis:'y', responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{x:{beginAtZero:true,grid:{color:grid},ticks:{color:text,stepSize:1}},y:{grid:{display:false},ticks:{color:text}}}}
+    data: {
+      labels: sorted.map(c=>c[0]),
+      datasets:[{data:sorted.map(c=>c[1]), backgroundColor:'rgba(0,198,255,.7)', borderRadius:7}]
+    },
+    options: {
+      indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{x:{beginAtZero:true,grid:{color:grid},ticks:{color:text,stepSize:1}},y:{grid:{display:false},ticks:{color:text}}},
+      onClick(e, els) {
+        if (!els.length) return;
+        const val = sorted[els[0].index][0];
+        applyChartFilter('client', val);
+        notify('Filtro aplicado: ' + val);
+      },
+      onHover(e) { e.native.target.style.cursor = 'pointer'; }
+    }
   });
 
-  // ---- GRÁFICO DE ATRASADOS ----
-  // Atrasados por mês (status === 4)
+  // ---- Atrasados por mês — clicável (mês + status atrasado) ----
   const alertByMonth = Array(12).fill(0);
   state.audits.forEach(a => a.months.forEach((v,i) => { if(v === 4) alertByMonth[i]++; }));
   const totalAlerts = alertByMonth.reduce((s,x) => s+x, 0);
@@ -1586,7 +1706,7 @@ function renderCharts() {
     type: 'bar',
     data: {
       labels: MONTHS,
-      datasets: [{
+      datasets:[{
         data: alertByMonth,
         backgroundColor: alertByMonth.map(v => v > 0 ? 'rgba(255,61,87,.8)' : 'rgba(255,255,255,.05)'),
         borderRadius: 6, borderSkipped: false
@@ -1594,15 +1714,23 @@ function renderCharts() {
     },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
+      plugins: {legend: {display: false}},
       scales: {
-        y: { beginAtZero: true, grid: { color: grid }, ticks: { color: text, stepSize: 1 } },
-        x: { grid: { display: false }, ticks: { color: text } }
-      }
+        y:{beginAtZero:true,grid:{color:grid},ticks:{color:text,stepSize:1}},
+        x:{grid:{display:false},ticks:{color:text}}
+      },
+      onClick(e, els) {
+        if (!els.length) return;
+        const idx = els[0].index;
+        // Navega para Gantt com mês + status Atrasado combinados
+        applyChartFilter('month', String(idx), {id:'monthStatusFilter', value:'4'});
+        notify('Filtro: Atrasados em ' + MONTHS[idx]);
+      },
+      onHover(e) { e.native.target.style.cursor = 'pointer'; }
     }
   });
 
-  // Atrasados por cliente
+  // ---- Atrasados por cliente — clicável (cliente + status atrasado) ----
   const alertByClient = {};
   state.audits.forEach(a => {
     const hasAlert = a.months.some(v => v === 4);
@@ -1614,20 +1742,23 @@ function renderCharts() {
     type: 'bar',
     data: {
       labels: sortedAlert.map(c => c[0]),
-      datasets: [{
-        data: sortedAlert.map(c => c[1]),
-        backgroundColor: 'rgba(255,108,47,.8)',
-        borderRadius: 6
-      }]
+      datasets:[{data: sortedAlert.map(c => c[1]), backgroundColor: 'rgba(255,108,47,.8)', borderRadius: 6}]
     },
     options: {
       indexAxis: 'y',
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
+      plugins: {legend: {display: false}},
       scales: {
-        x: { beginAtZero: true, grid: { color: grid }, ticks: { color: text, stepSize: 1 } },
-        y: { grid: { display: false }, ticks: { color: text, font: { size: 11 } } }
-      }
+        x:{beginAtZero:true,grid:{color:grid},ticks:{color:text,stepSize:1}},
+        y:{grid:{display:false},ticks:{color:text,font:{size:11}}}
+      },
+      onClick(e, els) {
+        if (!els.length) return;
+        const val = sortedAlert[els[0].index][0];
+        applyChartFilter('client', val, {id:'monthStatusFilter', value:'4'});
+        notify('Filtro: Atrasados — ' + val);
+      },
+      onHover(e) { e.native.target.style.cursor = 'pointer'; }
     }
   });
 }
@@ -1646,9 +1777,9 @@ function renderAnalytics() {
   const filePct  = total > 0 ? Math.round((withFile/total)*100) : 0;
 
   const kpis = [
-    {label:'Taxa de Aprovação',      val:pct,      color:'#00e676'},
-    {label:'Risco de Alerta',        val:alertPct, color:'#ff3d57'},
-    {label:'Documentação Anexada',   val:filePct,  color:'#00c6ff'},
+    {label:'Taxa de Aprovação',    val:pct,      color:'#00e676'},
+    {label:'Risco de Alerta',      val:alertPct, color:'#ff3d57'},
+    {label:'Documentação Anexada', val:filePct,  color:'#00c6ff'},
   ];
   document.getElementById('analyticsKpis').innerHTML = kpis.map(k => `
     <div class="kpi-card">
@@ -1684,6 +1815,7 @@ function renderAnalytics() {
     options: {responsive:true, maintainAspectRatio:false, plugins:{legend:{labels:{color:text,usePointStyle:true}}}, scales:{y:{beginAtZero:true,grid:{color:grid},ticks:{color:text,stepSize:1}},x:{grid:{display:false},ticks:{color:text}}}}
   });
 
+  // ---- Taxa de Aprovação por Cliente — clicável ----
   const clients  = [...new Set(state.audits.map(a => a.client))];
   const appRates = clients.map(c => {
     const all = state.audits.filter(a => a.client === c);
@@ -1692,8 +1824,27 @@ function renderAnalytics() {
   });
   state.charts.approval = new Chart('approvalChart', {
     type: 'bar',
-    data: {labels:clients, datasets:[{label:'% Aprovação', data:appRates, backgroundColor:appRates.map(v=>v>=80?'rgba(0,230,118,.8)':v>=50?'rgba(255,179,0,.8)':'rgba(255,61,87,.8)'), borderRadius:8}]},
-    options: {responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true,max:100,grid:{color:grid},ticks:{color:text,callback:v=>v+'%'}},x:{grid:{display:false},ticks:{color:text}}}}
+    data: {
+      labels: clients,
+      datasets:[{
+        label:'% Aprovação',
+        data: appRates,
+        backgroundColor: appRates.map(v => v>=80 ? 'rgba(0,230,118,.8)' : v>=50 ? 'rgba(255,179,0,.8)' : 'rgba(255,61,87,.8)'),
+        borderRadius: 8
+      }]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{y:{beginAtZero:true,max:100,grid:{color:grid},ticks:{color:text,callback:v=>v+'%'}},x:{grid:{display:false},ticks:{color:text}}},
+      onClick(e, els) {
+        if (!els.length) return;
+        const val = clients[els[0].index];
+        applyChartFilter('client', val);
+        notify('Filtro aplicado: ' + val);
+      },
+      onHover(e) { e.native.target.style.cursor = 'pointer'; }
+    }
   });
 }
 
@@ -1702,11 +1853,17 @@ function renderGantt() {
   document.getElementById('ganttHead').innerHTML = MONTHS.map(m => `<div class="gantt-month-label">${m}</div>`).join('');
   document.getElementById('ganttCount').textContent = `${state.filtered.length} de ${state.audits.length} registros`;
   document.getElementById('ganttRows').innerHTML = state.filtered.map(a => {
-    const rColor = RISK_COLORS[a.risk] || 'var(--accent)';
+    migrateAuditFiles(a);
+    const rColor  = RISK_COLORS[a.risk] || 'var(--accent)';
+    const files   = a.files || {};
+    const totalFiles = Object.values(files).filter(f => f?.name).length;
     return `
       <div class="gantt-row" onclick="viewAudit(${a.id})">
         <div class="gantt-info">
-          <div class="gantt-item-title">${a.sap}</div>
+          <div class="gantt-item-title" style="display:flex;align-items:center;gap:6px;">
+            ${a.sap}
+            ${totalFiles > 0 ? `<span style="font-size:11px;background:rgba(0,198,255,.15);color:var(--accent);padding:1px 7px;border-radius:10px;font-weight:700;" title="${totalFiles} relatório(s) anexado(s)">📎 ${totalFiles}</span>` : ''}
+          </div>
           <div class="gantt-item-sub">
             <span class="badge badge-client" style="background:${rColor}20;color:${rColor};">${a.client}</span>
             <span>${a.desc}</span>
@@ -1717,11 +1874,34 @@ function renderGantt() {
         </div>
         <div class="gantt-bars">
           ${a.months.map((v,i) => {
-            const cls  = ['bar-empty','bar-scheduled','bar-completed','bar-inprogress','bar-alert'][v] || 'bar-empty';
-            const icon = ['','📅','✓','⚡','⚠'][v] || '';
+            const cls     = ['bar-empty','bar-scheduled','bar-completed','bar-inprogress','bar-alert'][v] || 'bar-empty';
+            const icon    = ['','📅','✓','⚡','⚠'][v] || '';
+            const active  = v > 0;
+            const hasFile = !!(files[i] && files[i].name);
+            if (active && hasFile) {
+              const fIcon = getFileIcon(files[i].name);
+              return `<div class="gantt-bar ${cls} has-file" style="position:relative;"
+                onclick="event.stopPropagation();openGanttFilePopup(${a.id},this,${i})">
+                <button class="bar-file-btn" title="Ver relatório · ${MONTHS[i]}">${icon} <span style="font-size:10px;opacity:.85;margin-left:2px;">${fIcon}</span></button>
+                <div class="gantt-tooltip">
+                  <div class="gantt-tooltip-title">${MONTHS[i]}: ${STATUS_LABELS[v]||'Não agendado'}</div>
+                  <div class="gantt-tooltip-file">📎 ${files[i].name.length>22?files[i].name.slice(0,20)+'…':files[i].name}</div>
+                  <div style="font-size:10px;color:var(--text-secondary);margin-top:3px;">Clique para visualizar o relatório</div>
+                </div>
+              </div>`;
+            }
+            if (active && !hasFile) {
+              return `<div class="gantt-bar ${cls}" onclick="event.stopPropagation();openAttachForMonth(${a.id},${i})" title="Clique para anexar relatório de ${MONTHS[i]}">
+                ${icon}
+                <div class="gantt-tooltip">
+                  <div class="gantt-tooltip-title">${MONTHS[i]}: ${STATUS_LABELS[v]||'Não agendado'}</div>
+                  <div style="font-size:10px;color:var(--accent);margin-top:3px;">＋ Clique para anexar relatório</div>
+                </div>
+              </div>`;
+            }
             return `<div class="gantt-bar ${cls}" onclick="event.stopPropagation();toggleMonth(${a.id},${i})">
               ${icon}
-              <div class="gantt-tooltip">${MONTHS[i]}: ${STATUS_LABELS[v]||'Não agendado'}</div>
+              <div class="gantt-tooltip"><div class="gantt-tooltip-title">${MONTHS[i]}: ${STATUS_LABELS[v]||'Não agendado'}</div></div>
             </div>`;
           }).join('')}
         </div>
@@ -1742,6 +1922,188 @@ function toggleMonth(id, month) {
   }
 }
 
+// ======= POPUP DE ARQUIVO NO GANTT =======
+let _ganttPopupAuditId = null;
+let _ganttPopupMonthIdx = null;
+
+function openGanttFilePopup(auditId, triggerEl, monthIdx) {
+  const a = state.audits.find(x => x.id === auditId);
+  if (!a) return;
+  migrateAuditFiles(a);
+  const file = (a.files || {})[monthIdx];
+  if (!file) { notify('Nenhum arquivo para ' + (monthIdx!=null ? MONTHS[monthIdx] : 'este mês') + '. Edite a auditoria para anexar.', 'warn'); return; }
+  if (!file.data) { notify('Arquivo sem dados. Re-anexe o arquivo.', 'warn'); return; }
+
+  _ganttPopupAuditId  = auditId;
+  _ganttPopupMonthIdx = monthIdx ?? null;
+  _modalPreviewFile   = file;
+  closeGanttFilePopup(true);
+
+  const ext     = (file.name || '').split('.').pop().toLowerCase();
+  const fileIco = getFileIcon(file.name);
+  const extColor= {pdf:'#ff4757',jpg:'#a855f7',jpeg:'#a855f7',png:'#a855f7',xls:'#00b248',xlsx:'#00b248',csv:'#00b248',doc:'#0066ff',docx:'#0066ff',txt:'#ffb300'}[ext] || 'var(--accent)';
+  const monthLabel = monthIdx != null ? MONTHS[monthIdx] + ' · ' : '';
+
+  const backdrop = document.createElement('div');
+  backdrop.className = 'gantt-popup-backdrop';
+  backdrop.id = 'ganttPopupBackdrop';
+  backdrop.onclick = closeGanttFilePopup;
+  document.body.appendChild(backdrop);
+
+  const popup = document.createElement('div');
+  popup.className = 'gantt-file-popup';
+  popup.id = 'ganttFilePopup';
+  popup.innerHTML = `
+    <div class="gantt-file-popup-head">
+      <span style="font-size:20px;">${fileIco}</span>
+      <div class="gantt-file-popup-title">${escapeHtml(a.sap)} · ${monthLabel}${escapeHtml(file.name)}</div>
+      <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:${extColor}22;color:${extColor};text-transform:uppercase;flex-shrink:0;">${ext}</span>
+      <button onclick="closeGanttFilePopup()" style="width:28px;height:28px;border-radius:7px;background:var(--surface);border:1px solid var(--border);color:var(--text);cursor:pointer;font-size:14px;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all .2s;" onmouseover="this.style.background='var(--danger)';this.style.color='#fff'" onmouseout="this.style.background='var(--surface)';this.style.color='var(--text)'">✕</button>
+    </div>
+    <div class="gantt-file-popup-body" id="ganttPopupBody">
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:12px;color:var(--text-secondary);">
+        <div style="width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite;"></div>
+        <span style="font-size:13px;">Carregando...</span>
+      </div>
+    </div>
+    <div class="gantt-file-popup-actions">
+      <div style="flex:1;font-size:11px;color:var(--text-secondary);display:flex;align-items:center;gap:6px;">
+        <span>${a.client} · ${a.desc.length>28?a.desc.slice(0,26)+'…':a.desc}${monthIdx!=null?' · '+MONTHS[monthIdx]:''}</span>
+      </div>
+      <button class="btn btn-sm" onclick="ganttPopupToggleStatus()" ${monthIdx==null?'style="display:none"':''}>🔄 Status</button>
+      <button class="btn btn-sm" onclick="downloadModalFile()">⬇ Baixar</button>
+      <button class="btn btn-sm btn-primary" onclick="openFullViewer()">⛶ Tela Cheia</button>
+    </div>`;
+  popup.style.cssText += ';position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);';
+  document.body.appendChild(popup);
+  setTimeout(() => renderGanttFileContent(file, ext, document.getElementById('ganttPopupBody')), 50);
+}
+
+// Abre o modal de edição direto na tab de arquivos para o mês clicado
+function openAttachForMonth(auditId, monthIdx) {
+  state.currentEditId = auditId;
+  openEditModal(auditId);
+  notify('📎 Anexe o relatório para ' + MONTHS[monthIdx] + ' no campo abaixo', 'warn');
+  // Rola para a seção de arquivos após modal abrir
+  setTimeout(() => {
+    const grid = document.getElementById('eMonthFilesGrid');
+    if (grid) grid.scrollIntoView({behavior:'smooth', block:'center'});
+  }, 350);
+}
+
+function renderGanttFileContent(file, ext, container) {
+  if (ext === 'pdf') {
+    container.innerHTML = `<iframe src="${file.data}" style="width:100%;height:100%;border:none;background:#fff;"></iframe>`;
+    return;
+  }
+  if (['jpg','jpeg','png','gif','webp','bmp'].includes(ext)) {
+    container.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:center;height:100%;padding:16px;overflow:auto;background:var(--surface);">
+        <img src="${file.data}" alt="${escapeHtml(file.name)}" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:6px;box-shadow:0 8px 30px rgba(0,0,0,.4);">
+      </div>`;
+    return;
+  }
+  if (['xlsx','xls'].includes(ext)) {
+    container.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;gap:12px;color:var(--text-secondary);flex-direction:column;"><div style="width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--success);border-radius:50%;animation:spin 1s linear infinite;"></div><span>Lendo planilha...</span></div>`;
+    try {
+      const base64 = file.data.split(',')[1];
+      const binary = atob(base64);
+      const bytes  = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      const wb   = XLSX.read(bytes, {type:'array'});
+      const ws   = wb.Sheets[wb.SheetNames[0]];
+      const data = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+      if (!data.length) { container.innerHTML = '<div style="padding:20px;color:var(--text-secondary)">Planilha vazia.</div>'; return; }
+      const hdr  = data[0].map(h => `<th style="padding:6px 10px;background:var(--card2);border:1px solid var(--border);font-size:11px;white-space:nowrap;position:sticky;top:0;">${escapeHtml(String(h))}</th>`).join('');
+      const rows = data.slice(1).map(r => `<tr>${data[0].map((_,ci) => `<td style="padding:5px 10px;border:1px solid var(--border);font-size:11px;">${escapeHtml(String(r[ci]??''))}</td>`).join('')}</tr>`).join('');
+      container.innerHTML = `<div style="overflow:auto;height:100%;padding:12px;"><table style="border-collapse:collapse;width:100%;"><thead><tr>${hdr}</tr></thead><tbody>${rows}</tbody></table></div>`;
+    } catch(e) { container.innerHTML = `<div style="padding:20px;color:var(--danger);">Erro ao ler planilha: ${escapeHtml(e.message)}</div>`; }
+    return;
+  }
+  if (ext === 'docx') {
+    container.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;gap:12px;color:var(--text-secondary);flex-direction:column;"><div style="width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite;"></div><span>Processando Word...</span></div>`;
+    try {
+      const base64 = file.data.split(',')[1];
+      const binary = atob(base64);
+      const bytes  = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      mammoth.convertToHtml({arrayBuffer: bytes.buffer}).then(r => {
+        const safe = typeof DOMPurify !== 'undefined' ? DOMPurify.sanitize(r.value||'') : r.value||'';
+        container.innerHTML = `<div style="overflow:auto;height:100%;padding:24px 32px;font-size:13px;line-height:1.7;color:var(--text);">${safe || '<p style="color:var(--text-secondary)">Documento vazio.</p>'}</div>`;
+      }).catch(e => { container.innerHTML = `<div style="padding:20px;color:var(--danger);">Erro: ${escapeHtml(e.message)}</div>`; });
+    } catch(e) { container.innerHTML = `<div style="padding:20px;color:var(--danger);">Erro: ${escapeHtml(e.message)}</div>`; }
+    return;
+  }
+  if (ext === 'txt' || ext === 'csv') {
+    try {
+      const text = decodeURIComponent(escape(atob(file.data.split(',')[1])));
+      container.innerHTML = `<div style="overflow:auto;height:100%;padding:16px;"><pre style="font-family:'DM Sans',monospace;font-size:12px;line-height:1.6;color:var(--text);white-space:pre-wrap;">${escapeHtml(text)}</pre></div>`;
+    } catch(e) { container.innerHTML = `<div style="padding:20px;color:var(--danger);">Erro ao ler: ${escapeHtml(e.message)}</div>`; }
+    return;
+  }
+  // Tipo não suportado no popup — sugere tela cheia
+  container.innerHTML = `
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:12px;color:var(--text-secondary);text-align:center;padding:24px;">
+      <span style="font-size:40px;">📄</span>
+      <div style="font-size:14px;font-weight:600;color:var(--text);">Arquivo .${escapeHtml(ext)}</div>
+      <div style="font-size:12px;">Este tipo não suporta pré-visualização inline.</div>
+      <button class="btn btn-primary" onclick="openFullViewer()">⛶ Abrir Visualizador Completo</button>
+    </div>`;
+}
+
+function closeGanttFilePopup(silent) {
+  const bd = document.getElementById('ganttPopupBackdrop');
+  const pp = document.getElementById('ganttFilePopup');
+  if (bd) bd.remove();
+  if (pp) pp.remove();
+  if (!silent) { _ganttPopupAuditId = null; _ganttPopupMonthIdx = null; }
+}
+
+function ganttPopupToggleStatus() {
+  if (_ganttPopupAuditId == null || _ganttPopupMonthIdx == null) return;
+  const a = state.audits.find(x => x.id === _ganttPopupAuditId);
+  if (!a) return;
+  a.months[_ganttPopupMonthIdx] = (a.months[_ganttPopupMonthIdx] + 1) % 5;
+  saveAudits();
+  state.filtered = [...state.audits];
+  filterGantt();
+  renderMetrics();
+  renderCharts();
+  closeGanttFilePopup();
+  notify('Status de ' + MONTHS[_ganttPopupMonthIdx] + ' atualizado');
+}
+
+function ganttPopupDownload() {
+  const a = state.audits.find(x => x.id === _ganttPopupAuditId);
+  const file = (a?.files || {})[_ganttPopupMonthIdx];
+  if (!file?.data) { notify('Arquivo não disponível','warn'); return; }
+  const link = document.createElement('a');
+  link.href = file.data; link.download = file.name; link.click();
+  notify('Download iniciado: ' + file.name);
+}
+
+function openFullViewer() {
+  if (_ganttPopupAuditId != null) {
+    state.currentViewId = _ganttPopupAuditId;
+    const a    = state.audits.find(x => x.id === _ganttPopupAuditId);
+    const file = (a?.files || {})[_ganttPopupMonthIdx];
+    closeGanttFilePopup();
+    if (file?.data) {
+      // Abre direto no visualizador completo
+      const ext   = (file.name||'').split('.').pop().toLowerCase();
+      const icon  = getFileIcon(file.name);
+      const color = {pdf:'#ff4757',jpg:'#a855f7',jpeg:'#a855f7',png:'#a855f7',xls:'#00b248',xlsx:'#00b248',csv:'#00b248',doc:'#0066ff',docx:'#0066ff',txt:'#ffb300'}[ext] || 'var(--accent)';
+      document.getElementById('fvTypeIcon').textContent  = icon;
+      document.getElementById('fvFileName').textContent  = file.name;
+      document.getElementById('fvTypeBadge').textContent = ext.toUpperCase();
+      document.getElementById('fvTypeBadge').style.background = color + '22';
+      document.getElementById('fvTypeBadge').style.color = color;
+      document.getElementById('fileViewer').classList.add('active');
+      renderFileContent(file, ext);
+    }
+  }
+}
+
 // ======= FILTROS =======
 function updateFilterOptions() {
   const clients  = [...new Set(state.audits.map(a => a.client))].sort();
@@ -1757,29 +2119,24 @@ function filterGantt() {
   const ri  = document.getElementById('riskFilter')?.value || '';
   const st  = document.getElementById('statusFilter')?.value || '';
   const fa  = document.getElementById('familyFilter')?.value || '';
-  const mo  = document.getElementById('monthFilter')?.value;          // índice 0-11 ou ''
-  const mst = document.getElementById('monthStatusFilter')?.value || ''; // status no mês
+  const mo  = document.getElementById('monthFilter')?.value;
+  const mst = document.getElementById('monthStatusFilter')?.value || '';
 
   state.filtered = state.audits.filter(a => {
-    // busca textual
     const ms = !s || [a.sap, a.pn, a.client, a.desc, a.resp, a.family].some(x => (x||'').toLowerCase().includes(s));
     if (!ms) return false;
-    // filtros dropdown
     if (cl && a.client !== cl) return false;
     if (ri && a.risk   !== ri) return false;
     if (st && a.status !== st) return false;
     if (fa && a.family !== fa) return false;
-    // filtro de mês
     if (mo !== '' && mo !== undefined && mo !== null) {
       const idx = parseInt(mo);
       const monthVal = a.months[idx] ?? 0;
       if (mst === 'active') return monthVal > 0;
       if (mst === 'empty')  return monthVal === 0;
       if (mst !== '')       return monthVal === parseInt(mst);
-      // mês selecionado mas sem filtro de status: mostra auditorias com qualquer atividade nesse mês
       return monthVal > 0;
     } else if (mst !== '') {
-      // status selecionado sem mês: filtra em qualquer mês
       if (mst === 'active') return a.months.some(v => v > 0);
       if (mst === 'empty')  return a.months.every(v => v === 0);
       return a.months.some(v => v === parseInt(mst));
@@ -1788,16 +2145,16 @@ function filterGantt() {
   });
   renderGantt();
   renderMetrics();
-  // Mostra badge de filtros ativos
   updateFilterBadge();
 }
 
-function clearFilters() {
+// silently = true: limpa sem re-renderizar (usado internamente antes de applyChartFilter)
+function clearFilters(silently) {
   ['searchInput','clientFilter','riskFilter','statusFilter','familyFilter','monthFilter','monthStatusFilter'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
-  filterGantt();
+  if (!silently) filterGantt();
 }
 
 function updateFilterBadge() {
@@ -1820,7 +2177,7 @@ function buildMonthsGrid(prefix) {
   el.innerHTML = MONTHS.map((m,i) => `
     <div class="month-cell">
       <label>${m}</label>
-      <select class="month-select" id="${prefix}M${i}">
+      <select class="month-select" id="${prefix}M${i}" onchange="refreshMonthFilesGrid('${prefix}')">
         <option value="0">—</option>
         <option value="1">📅 Ag.</option>
         <option value="2">✓ Ok</option>
@@ -1832,39 +2189,164 @@ function buildMonthsGrid(prefix) {
 function getMonths(prefix) { return Array.from({length:12}, (_,i) => parseInt(document.getElementById(prefix+'M'+i)?.value||0)); }
 function setMonths(prefix, months) { months.forEach((v,i) => { const el = document.getElementById(prefix+'M'+i); if(el) el.value=v; }); }
 
-// ======= ARQUIVOS =======
-function handleFile(prefix, e) {
-  const f = e.target.files[0];
+// ======= ARQUIVOS POR MÊS =======
+// state.modalFiles[prefix] = { monthIdx: {name, size, type, data}, ... }
+if (!state.modalFiles) state.modalFiles = {};
+
+const FILE_ICONS_MAP = {pdf:'📕',jpg:'🖼️',jpeg:'🖼️',png:'🖼️',gif:'🖼️',webp:'🖼️',bmp:'🖼️',xls:'📗',xlsx:'📗',csv:'📊',doc:'📘',docx:'📘',txt:'📝'};
+
+function getFileIcon(name) { return FILE_ICONS_MAP[(name||'').split('.').pop().toLowerCase()] || '📄'; }
+
+// Constrói/atualiza o grid de arquivos por mês dentro do modal
+function refreshMonthFilesGrid(prefix) {
+  const grid = document.getElementById(prefix + 'MonthFilesGrid');
+  if (!grid) return;
+  const months  = getMonths(prefix);
+  const files   = state.modalFiles[prefix] || {};
+  const active  = months.map((v, i) => ({v, i})).filter(x => x.v > 0);
+
+  if (active.length === 0) {
+    grid.innerHTML = `<div style="font-size:12px;color:var(--text-secondary);padding:10px 0;">Nenhum mês ativo. Defina o status de pelo menos um mês acima.</div>`;
+    return;
+  }
+
+  grid.innerHTML = active.map(({v, i}) => {
+    const f        = files[i];
+    const icon     = f ? getFileIcon(f.name) : '📎';
+    const statusIcon = ['','📅','✓','⚡','⚠'][v] || '';
+    const statusLabel = STATUS_LABELS[v] || '';
+    const hasFile  = !!f;
+    return `
+      <div class="month-file-row ${hasFile ? 'has-file' : ''}" id="${prefix}mfr${i}">
+        <span class="mfr-month">${MONTHS[i]}</span>
+        <span class="mfr-status" title="${statusLabel}">${statusIcon}</span>
+        <div class="mfr-info">
+          ${hasFile
+            ? `<div class="mfr-name">${icon} ${escapeHtml(f.name)}</div>
+               <div class="mfr-size">${(f.size/1024).toFixed(1)} KB</div>`
+            : `<div class="mfr-empty">Sem relatório anexado</div>`}
+        </div>
+        <div class="mfr-actions">
+          ${hasFile ? `
+            <button class="btn btn-sm" title="Visualizar" onclick="previewMonthFile('${prefix}',${i})" style="padding:5px 10px;">👁</button>
+            <button class="btn btn-sm btn-danger" title="Remover" onclick="removeMonthFile('${prefix}',${i})" style="padding:5px 10px;">✕</button>
+          ` : ''}
+          <label class="btn btn-sm ${hasFile ? '' : 'btn-primary'}" style="padding:5px 12px;cursor:pointer;margin:0;" title="${hasFile ? 'Substituir arquivo' : 'Anexar arquivo'}">
+            ${hasFile ? '↺' : '＋ Anexar'}
+            <input type="file" style="display:none;" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.txt"
+              onchange="handleMonthFile('${prefix}',${i},this)">
+          </label>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function handleMonthFile(prefix, monthIdx, inputEl) {
+  const f = inputEl.files[0];
   if (!f) return;
   if (f.size > MAX_FILE) { notify('Arquivo muito grande (máx 10MB)', 'error'); return; }
   const reader = new FileReader();
   reader.onload = ev => {
-    const data = {name:f.name, size:f.size, type:f.type, data:ev.target.result};
-    if (prefix === 'n') state.nFileData = data;
-    else state.eFileData = data;
-    document.getElementById(prefix+'FileName').textContent = f.name;
-    document.getElementById(prefix+'FileSize').textContent = (f.size/1024).toFixed(1)+' KB';
-    document.getElementById(prefix+'FilePreview').style.display = 'flex';
+    if (!state.modalFiles[prefix]) state.modalFiles[prefix] = {};
+    state.modalFiles[prefix][monthIdx] = {name: f.name, size: f.size, type: f.type, data: ev.target.result};
+    refreshMonthFilesGrid(prefix);
+    notify('📎 ' + MONTHS[monthIdx] + ': ' + f.name + ' anexado!');
   };
   reader.readAsDataURL(f);
 }
-function removeFile(prefix) {
-  if (prefix === 'n') state.nFileData = null;
-  else state.eFileData = null;
-  document.getElementById(prefix+'FilePreview').style.display = 'none';
-  document.getElementById(prefix+'File').value = '';
+
+function removeMonthFile(prefix, monthIdx) {
+  if (state.modalFiles[prefix]) delete state.modalFiles[prefix][monthIdx];
+  refreshMonthFilesGrid(prefix);
+}
+
+function previewMonthFile(prefix, monthIdx) {
+  const f = (state.modalFiles[prefix] || {})[monthIdx];
+  if (!f?.data) { notify('Arquivo sem dados', 'warn'); return; }
+  // Abre popup inline de preview
+  _ganttPopupAuditId  = null; // não é do gantt
+  _ganttPopupMonthIdx = monthIdx;
+  _modalPreviewFile   = f;
+  closeGanttFilePopup(true);
+
+  const ext     = (f.name||'').split('.').pop().toLowerCase();
+  const fileIco = getFileIcon(f.name);
+  const extColor= {pdf:'#ff4757',jpg:'#a855f7',jpeg:'#a855f7',png:'#a855f7',xls:'#00b248',xlsx:'#00b248',csv:'#00b248',doc:'#0066ff',docx:'#0066ff',txt:'#ffb300'}[ext] || 'var(--accent)';
+
+  const backdrop = document.createElement('div');
+  backdrop.className = 'gantt-popup-backdrop';
+  backdrop.id = 'ganttPopupBackdrop';
+  backdrop.onclick = closeGanttFilePopup;
+  document.body.appendChild(backdrop);
+
+  const popup = document.createElement('div');
+  popup.className = 'gantt-file-popup';
+  popup.id = 'ganttFilePopup';
+  popup.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:1500;';
+  popup.innerHTML = `
+    <div class="gantt-file-popup-head">
+      <span style="font-size:20px;">${fileIco}</span>
+      <div class="gantt-file-popup-title">${MONTHS[monthIdx]} — ${escapeHtml(f.name)}</div>
+      <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:${extColor}22;color:${extColor};text-transform:uppercase;flex-shrink:0;">${ext}</span>
+      <button onclick="closeGanttFilePopup()" style="width:28px;height:28px;border-radius:7px;background:var(--surface);border:1px solid var(--border);color:var(--text);cursor:pointer;font-size:14px;flex-shrink:0;display:flex;align-items:center;justify-content:center;">✕</button>
+    </div>
+    <div class="gantt-file-popup-body" id="ganttPopupBody"></div>
+    <div class="gantt-file-popup-actions">
+      <span style="flex:1;font-size:11px;color:var(--text-secondary);">${(f.size/1024).toFixed(1)} KB · ${MONTHS[monthIdx]}</span>
+      <button class="btn btn-sm" onclick="downloadModalFile()">⬇ Baixar</button>
+    </div>`;
+  document.body.appendChild(popup);
+  setTimeout(() => renderGanttFileContent(f, ext, document.getElementById('ganttPopupBody')), 30);
+}
+
+let _modalPreviewFile = null;
+function downloadModalFile() {
+  const f = _modalPreviewFile;
+  if (!f?.data) { notify('Arquivo não disponível','warn'); return; }
+  const link = document.createElement('a');
+  link.href = f.data; link.download = f.name; link.click();
+}
+
+// Converte modalFiles para o novo formato files[] da auditoria
+function getModalFilesAsAuditFiles(prefix) {
+  return state.modalFiles[prefix] ? {...state.modalFiles[prefix]} : {};
+}
+
+// Carrega files de uma auditoria no estado do modal
+function loadAuditFilesToModal(prefix, auditFiles) {
+  // Suporte legado: se a auditoria ainda tem `file` (objeto único), migra para `files`
+  state.modalFiles[prefix] = {};
+  if (auditFiles && typeof auditFiles === 'object' && !Array.isArray(auditFiles)) {
+    Object.keys(auditFiles).forEach(k => {
+      const idx = parseInt(k);
+      if (!isNaN(idx)) state.modalFiles[prefix][idx] = auditFiles[k];
+    });
+  }
+}
+
+// Migração de dados legados: `file` → `files`
+function migrateAuditFiles(a) {
+  if (!a.files) a.files = {};
+  // Se tinha o campo antigo `file` (único), coloca no mês 0 como fallback
+  if (a.file && a.file.name) {
+    // Detecta meses ativos e associa ao primeiro
+    const firstActive = a.months.findIndex(v => v > 0);
+    const targetMonth = firstActive >= 0 ? firstActive : 0;
+    if (!a.files[targetMonth]) a.files[targetMonth] = a.file;
+    delete a.file;
+  }
+  return a;
 }
 
 // ======= NOVA AUDITORIA =======
 function openNewModal() {
-  state.nFileData = null;
-  document.getElementById('nFilePreview').style.display = 'none';
-  document.getElementById('nFile').value = '';
+  state.modalFiles['n'] = {};
   ['nSap','nPn','nDesc','nFamily','nResp','nObs'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('nClient').value = 'VW';
   document.getElementById('nRisk').value   = 'Médio';
   document.getElementById('nStatus').value = 'Aprovado';
   setMonths('n', Array(12).fill(0));
+  refreshMonthFilesGrid('n');
   document.getElementById('newModal').classList.add('active');
 }
 
@@ -1877,7 +2359,6 @@ function saveNew() {
     document.getElementById('nPn').classList.toggle('error', !pn);
     return;
   }
-  // FIX 2: Geração de ID segura usando reduce (evita Math.max spread em array vazio)
   const newId = state.audits.reduce((max, a) => Math.max(max, a.id || 0), 0) + 1;
   state.audits.push({
     id: newId, sap, pn,
@@ -1889,7 +2370,7 @@ function saveNew() {
     resp:   document.getElementById('nResp').value.trim(),
     status: document.getElementById('nStatus').value,
     obs:    document.getElementById('nObs').value.trim(),
-    file:   state.nFileData
+    files:  getModalFilesAsAuditFiles('n')
   });
   saveAudits();
   state.filtered = [...state.audits];
@@ -1905,8 +2386,9 @@ function saveNew() {
 function openEditModal(id) {
   const a = state.audits.find(x => x.id === id);
   if (!a) return;
+  migrateAuditFiles(a); // migra dados legados se necessário
   state.currentEditId = id;
-  state.eFileData = a.file ? {...a.file} : null;
+  loadAuditFilesToModal('e', a.files);
   document.getElementById('editModalTitle').textContent = 'Editar — '+a.sap;
   document.getElementById('eSap').value    = a.sap    || '';
   document.getElementById('ePn').value     = a.pn     || '';
@@ -1918,13 +2400,7 @@ function openEditModal(id) {
   document.getElementById('eStatus').value = a.status || 'Aprovado';
   document.getElementById('eObs').value    = a.obs    || '';
   setMonths('e', a.months || Array(12).fill(0));
-  if (a.file) {
-    document.getElementById('eFileName').textContent = a.file.name;
-    document.getElementById('eFileSize').textContent = (a.file.size/1024).toFixed(1)+' KB';
-    document.getElementById('eFilePreview').style.display = 'flex';
-  } else {
-    document.getElementById('eFilePreview').style.display = 'none';
-  }
+  refreshMonthFilesGrid('e');
   document.getElementById('editModal').classList.add('active');
 }
 
@@ -1941,7 +2417,8 @@ function saveEdit() {
   a.status = document.getElementById('eStatus').value;
   a.obs    = document.getElementById('eObs').value.trim();
   a.months = getMonths('e');
-  if (state.eFileData) a.file = state.eFileData;
+  a.files  = getModalFilesAsAuditFiles('e');
+  delete a.file; // remove campo legado se existir
   saveAudits();
   state.filtered = [...state.audits];
   updateFilterOptions();
@@ -1965,17 +2442,20 @@ function deleteAudit() {
   notify('Auditoria excluída', 'warn');
 }
 
+
 // ======= VISUALIZAÇÃO =======
 function viewAudit(id) {
   const a = state.audits.find(x => x.id === id);
   if (!a) return;
+  migrateAuditFiles(a);
   state.currentViewId = id;
   document.getElementById('viewModalTitle').textContent = a.sap;
   const rColor = RISK_COLORS[a.risk] || 'var(--accent)';
   const sColor = a.status==='Aprovado'?'var(--success)':a.status==='Pendente'?'var(--warning)':'var(--danger)';
   const monthsHtml = `<div class="months-preview">${a.months.map((v,i) => {
     const bg = ['var(--border)','rgba(0,198,255,.7)','rgba(0,230,118,.7)','rgba(255,179,0,.7)','rgba(255,61,87,.7)'][v] || 'var(--border)';
-    return `<div class="mp-bar" style="background:${bg};" title="${MONTHS[i]}: ${STATUS_LABELS[v]||'—'}">${MONTHS[i]}</div>`;
+    const hasF = !!(a.files && a.files[i]);
+    return `<div class="mp-bar" style="background:${bg};${hasF?'outline:2px solid rgba(255,255,255,.6);outline-offset:-2px;':''}" title="${MONTHS[i]}: ${STATUS_LABELS[v]||'—'}${hasF?' · 📎 arquivo':''}">${MONTHS[i]}${hasF?'<span style="font-size:8px;display:block;opacity:.9;">📎</span>':''}</div>`;
   }).join('')}</div>`;
   document.getElementById('viewGrid').innerHTML = `
     <div class="view-item"><div class="view-label">PN Cliente</div><div class="view-value">${a.pn}</div></div>
@@ -1988,28 +2468,112 @@ function viewAudit(id) {
     <div class="view-item full"><div class="view-label">Observações</div><div class="view-value" style="color:var(--text-secondary);font-size:13px;">${a.obs||'—'}</div></div>
     <div class="view-item full"><div class="view-label">Cronograma 2026</div>${monthsHtml}</div>
   `;
-  if (a.file) {
-    const ext = (a.file.name||'').split('.').pop().toLowerCase();
-    const icons  = {pdf:'📕',jpg:'🖼️',jpeg:'🖼️',png:'🖼️',gif:'🖼️',webp:'🖼️',xls:'📗',xlsx:'📗',csv:'📊',doc:'📘',docx:'📘',txt:'📝'};
-    const colors = {pdf:'#ff4757',jpg:'#a855f7',jpeg:'#a855f7',png:'#a855f7',gif:'#a855f7',xls:'#00b248',xlsx:'#00b248',csv:'#00b248',doc:'#0066ff',docx:'#0066ff',txt:'#ffb300'};
-    document.getElementById('viewFileName').textContent = a.file.name;
-    document.getElementById('viewFileSize').textContent = (a.file.size/1024).toFixed(1)+' KB';
-    document.getElementById('viewFileIcon').textContent = icons[ext] || '📄';
-    document.getElementById('viewFileArea').style.display = 'flex';
-    const viewBtn = document.querySelector('#viewFileArea .btn-primary');
-    if (viewBtn) viewBtn.style.display = a.file.data ? '' : 'none';
+
+  // Seção de arquivos por mês
+  const filesArea = document.getElementById('viewFilesArea');
+  const files = a.files || {};
+  const fileEntries = Object.entries(files).filter(([,f]) => f && f.name);
+  if (fileEntries.length > 0) {
+    filesArea.innerHTML = `
+      <div style="font-size:11px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.7px;margin:16px 0 8px;">📎 Relatórios Anexados</div>
+      ${fileEntries.map(([mi, f]) => {
+        const monthIdx = parseInt(mi);
+        const ext = (f.name||'').split('.').pop().toLowerCase();
+        const icon = getFileIcon(f.name);
+        const v = a.months[monthIdx] ?? 0;
+        return `<div class="file-attached" style="margin-bottom:8px;">
+          <div class="file-attached-icon" style="font-size:22px;background:var(--surface);">${icon}</div>
+          <div class="file-attached-info">
+            <div class="file-attached-name">${escapeHtml(f.name)}</div>
+            <div class="file-attached-size">${MONTHS[monthIdx]} · ${STATUS_LABELS[v]||'—'} · ${(f.size/1024).toFixed(1)} KB</div>
+          </div>
+          ${f.data ? `<button class="btn btn-sm btn-primary" onclick="viewMonthFileFromModal(${monthIdx})">👁 Ver</button>` : ''}
+          <button class="btn btn-sm" onclick="downloadMonthFileFromModal(${monthIdx})">⬇ Baixar</button>
+        </div>`;
+      }).join('')}`;
   } else {
-    document.getElementById('viewFileArea').style.display = 'none';
+    filesArea.innerHTML = '';
   }
+
   document.getElementById('viewModal').classList.add('active');
 }
-function openEditFromView() { closeModal('viewModal'); openEditModal(state.currentViewId); }
-function downloadAttachment() {
+
+function viewMonthFileFromModal(monthIdx) {
   const a = state.audits.find(x => x.id === state.currentViewId);
-  if (!a?.file?.data) { notify('Arquivo não disponível para download','warn'); return; }
+  const f = a?.files?.[monthIdx];
+  if (!f?.data) { notify('Arquivo não disponível', 'warn'); return; }
+  _modalPreviewFile   = f;
+  _ganttPopupMonthIdx = monthIdx;
+  _ganttPopupAuditId  = null;
+  closeGanttFilePopup(true);
+
+  const ext     = (f.name||'').split('.').pop().toLowerCase();
+  const fileIco = getFileIcon(f.name);
+  const extColor= {pdf:'#ff4757',jpg:'#a855f7',jpeg:'#a855f7',png:'#a855f7',xls:'#00b248',xlsx:'#00b248',csv:'#00b248',doc:'#0066ff',docx:'#0066ff',txt:'#ffb300'}[ext] || 'var(--accent)';
+
+  const backdrop = document.createElement('div');
+  backdrop.className = 'gantt-popup-backdrop';
+  backdrop.id = 'ganttPopupBackdrop';
+  backdrop.style.zIndex = '1600';
+  backdrop.onclick = closeGanttFilePopup;
+  document.body.appendChild(backdrop);
+
+  const popup = document.createElement('div');
+  popup.className = 'gantt-file-popup';
+  popup.id = 'ganttFilePopup';
+  popup.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:1601;';
+  popup.innerHTML = `
+    <div class="gantt-file-popup-head">
+      <span style="font-size:20px;">${fileIco}</span>
+      <div class="gantt-file-popup-title">${MONTHS[monthIdx]} — ${escapeHtml(f.name)}</div>
+      <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:${extColor}22;color:${extColor};text-transform:uppercase;flex-shrink:0;">${ext}</span>
+      <button onclick="closeGanttFilePopup()" style="width:28px;height:28px;border-radius:7px;background:var(--surface);border:1px solid var(--border);color:var(--text);cursor:pointer;font-size:14px;flex-shrink:0;display:flex;align-items:center;justify-content:center;">✕</button>
+    </div>
+    <div class="gantt-file-popup-body" id="ganttPopupBody"></div>
+    <div class="gantt-file-popup-actions">
+      <span style="flex:1;font-size:11px;color:var(--text-secondary);">${(f.size/1024).toFixed(1)} KB · ${MONTHS[monthIdx]}</span>
+      <button class="btn btn-sm" onclick="downloadModalFile()">⬇ Baixar</button>
+    </div>`;
+  document.body.appendChild(popup);
+  setTimeout(() => renderGanttFileContent(f, ext, document.getElementById('ganttPopupBody')), 30);
+}
+
+function downloadMonthFileFromModal(monthIdx) {
+  const a = state.audits.find(x => x.id === state.currentViewId);
+  const f = a?.files?.[monthIdx];
+  if (!f?.data) { notify('Arquivo não disponível','warn'); return; }
   const link = document.createElement('a');
-  link.href = a.file.data; link.download = a.file.name; link.click();
-  notify('Download iniciado: ' + a.file.name);
+  link.href = f.data; link.download = f.name; link.click();
+  notify('Download: ' + f.name);
+}
+
+function openEditFromView() { closeModal('viewModal'); openEditModal(state.currentViewId); }
+
+function downloadAttachment() {
+  // Legado — baixa o primeiro arquivo disponível
+  const a = state.audits.find(x => x.id === (state.currentViewId || _ganttPopupAuditId));
+  const files = a?.files || {};
+  const first = Object.values(files).find(f => f?.data);
+  if (!first) { notify('Arquivo não disponível para download','warn'); return; }
+  const link = document.createElement('a');
+  link.href = first.data; link.download = first.name; link.click();
+  notify('Download iniciado: ' + first.name);
+}
+
+function openFileViewer() {
+  // Legado: abre o primeiro arquivo com dados
+  const a = state.audits.find(x => x.id === state.currentViewId);
+  if (!a) return;
+  migrateAuditFiles(a);
+  const files = a.files || {};
+  const entry = Object.entries(files).find(([,f]) => f?.data);
+  if (!entry) { notify('Nenhum arquivo com dados disponível.', 'warn'); return; }
+  const [mi, file] = entry;
+  state.currentViewId = a.id;
+  _ganttPopupAuditId  = a.id;
+  _ganttPopupMonthIdx = parseInt(mi);
+  closeGanttFilePopup(true);
+  openGanttFilePopup(a.id, null, parseInt(mi));
 }
 
 // ======= IMPRESSÃO =======
@@ -2043,11 +2607,9 @@ function printAudit() {
         const bg=['#eee','#cce5ff','#d4edda','#fff3cd','#f8d7da'][v]||'#eee';
         const c =['#666','#004085','#155724','#856404','#721c24'][v]||'#666';
         return `<div class="mb" style="background:${bg};color:${c};">${MONTHS[i]}: ${STATUS_LABELS[v]||'—'}</div>`;
-      }).join('')}
-      </div>
+      }).join('')}</div>
     </td></tr>
-  </table>
-  </body></html>`);
+  </table></body></html>`);
   win.document.close();
   win.print();
 }
@@ -2079,7 +2641,7 @@ function exportToPrint() {
   win.print();
 }
 
-// ======= EXPORTAÇÃO =======
+// ======= IMPORTAÇÃO =======
 let state_importedAudits = [];
 
 function openImportModal() {
@@ -2207,7 +2769,6 @@ function parseWorkbook(wb) {
   addImportLog(`🗺️ SAP:${sapCol} PN:${pnCol} Cliente:${clientCol} JAN:${janCol} Resp:${respCol} Result:${resultCol}`);
 
   const parsed = [];
-  // FIX 2: nextId usando reduce para ser seguro com lista vazia
   let nextId = state.audits.reduce((max, a) => Math.max(max, a.id||0), 0) + 1;
   let skipped = 0;
   let i = headerRow + 1;
@@ -2355,32 +2916,30 @@ function notify(msg, type='success') {
 
 init();
 
-// ======= EXPOR FUNÇÕES AO ESCOPO GLOBAL =======
-// Necessário porque <script type="module"> tem escopo privado.
-// Funções chamadas via onclick="" no HTML precisam estar no window.
 Object.assign(window, {
-  // navegação
   switchView, toggleTheme,
-  // modais
   openNewModal, closeModal, saveNew,
   openEditModal, saveEdit, deleteAudit,
   viewAudit, openEditFromView, printAudit,
   openFileViewer, closeFileViewer, downloadAttachment,
-  // filtros
   filterGantt, clearFilters,
-  // gantt
   toggleMonth,
-  // arquivos
-  handleFile, removeFile,
-  // importação / exportação
+  // Gantt file popup
+  openGanttFilePopup, closeGanttFilePopup, openAttachForMonth,
+  ganttPopupToggleStatus, ganttPopupDownload, openFullViewer,
+  // Per-month file handling
+  handleMonthFile, removeMonthFile, previewMonthFile,
+  refreshMonthFilesGrid, downloadModalFile,
+  // View modal per-month
+  viewMonthFileFromModal, downloadMonthFileFromModal,
+  // Import/export
   openImportModal, closeImportModal,
   handleImportFile, applyImport, importBackupJSON,
   exportToExcel, exportToCSV, exportToPrint,
   exportBackupJSON, toggleExportMenu, closeExportMenu,
-  // visualizador de arquivo
   zoomImg, switchSheet: (idx) => window.switchSheet?.(idx),
-  // notificação
   notify,
+  applyChartFilter,
 });
 </script>
 </body>
